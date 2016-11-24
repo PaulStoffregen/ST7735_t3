@@ -15,7 +15,7 @@
  ****************************************************/
 
 #include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
+#include <ST7735_t3.h>
 #include <SD.h>
 #include <SPI.h>
 
@@ -33,7 +33,7 @@
 #define rst  8   // RST can use any pin
 #define sdcs 4   // CS for SD card, can use any pin
 
-Adafruit_ST7735 tft = Adafruit_ST7735(cs, dc, mosi, sclk, rst);
+ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
 
 #define BUTTON_NONE 0
 #define BUTTON_DOWN 1

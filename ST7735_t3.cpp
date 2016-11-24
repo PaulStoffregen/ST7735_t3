@@ -16,7 +16,7 @@
   MIT license, all text above must be included in any redistribution
  ****************************************************/
 
-#include "Adafruit_ST7735.h"
+#include "ST7735_t3.h"
 #include <limits.h>
 #include "pins_arduino.h"
 #include "wiring_private.h"
@@ -24,7 +24,7 @@
 
 
 // Constructor when using software SPI.  All output pins are configurable.
-Adafruit_ST7735::Adafruit_ST7735(uint8_t cs, uint8_t rs, uint8_t sid,
+ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid,
  uint8_t sclk, uint8_t rst) : Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT)
 {
 	_cs   = cs;
@@ -38,7 +38,7 @@ Adafruit_ST7735::Adafruit_ST7735(uint8_t cs, uint8_t rs, uint8_t sid,
 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
 // specific to each board type (e.g. 11,13 for Uno, 51,52 for Mega, etc.)
-Adafruit_ST7735::Adafruit_ST7735(uint8_t cs, uint8_t rs, uint8_t rst) :
+ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
   Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT) {
 	_cs   = cs;
 	_rs   = rs;
@@ -52,11 +52,11 @@ Adafruit_ST7735::Adafruit_ST7735(uint8_t cs, uint8_t rs, uint8_t rst) :
 /*     Arduino Uno, Leonardo, Mega, Teensy 2.0, etc            */
 /***************************************************************/
 #if defined(__AVR__ )
-inline void Adafruit_ST7735::writebegin()
+inline void ST7735_t3::writebegin()
 {
 }
 
-inline void Adafruit_ST7735::spiwrite(uint8_t c)
+inline void ST7735_t3::spiwrite(uint8_t c)
 {
 	if (hwSPI) {
 		SPDR = c;
@@ -72,7 +72,7 @@ inline void Adafruit_ST7735::spiwrite(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writecommand(uint8_t c)
+void ST7735_t3::writecommand(uint8_t c)
 {
 	*rsport &= ~rspinmask;
 	*csport &= ~cspinmask;
@@ -80,7 +80,7 @@ void Adafruit_ST7735::writecommand(uint8_t c)
 	*csport |= cspinmask;
 }
 
-void Adafruit_ST7735::writedata(uint8_t c)
+void ST7735_t3::writedata(uint8_t c)
 {
 	*rsport |=  rspinmask;
 	*csport &= ~cspinmask;
@@ -88,7 +88,7 @@ void Adafruit_ST7735::writedata(uint8_t c)
 	*csport |= cspinmask;
 } 
 
-void Adafruit_ST7735::writedata16(uint16_t d)
+void ST7735_t3::writedata16(uint16_t d)
 {
 	*rsport |=  rspinmask;
 	*csport &= ~cspinmask;
@@ -97,7 +97,7 @@ void Adafruit_ST7735::writedata16(uint16_t d)
 	*csport |= cspinmask;
 } 
 
-void Adafruit_ST7735::setBitrate(uint32_t n)
+void ST7735_t3::setBitrate(uint32_t n)
 {
 	if (n >= 8000000) {
 		SPI.setClockDivider(SPI_CLOCK_DIV2);
@@ -114,11 +114,11 @@ void Adafruit_ST7735::setBitrate(uint32_t n)
 /*     Arduino Due                                             */
 /***************************************************************/
 #elif defined(__SAM3X8E__)
-inline void Adafruit_ST7735::writebegin()
+inline void ST7735_t3::writebegin()
 {
 }
 
-inline void Adafruit_ST7735::spiwrite(uint8_t c)
+inline void ST7735_t3::spiwrite(uint8_t c)
 {
 	//Serial.println(c, HEX);
 	if (hwSPI) {
@@ -134,7 +134,7 @@ inline void Adafruit_ST7735::spiwrite(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writecommand(uint8_t c)
+void ST7735_t3::writecommand(uint8_t c)
 {
 	rsport->PIO_CODR |=  rspinmask;
 	csport->PIO_CODR  |=  cspinmask;
@@ -142,7 +142,7 @@ void Adafruit_ST7735::writecommand(uint8_t c)
 	csport->PIO_SODR  |=  cspinmask;
 }
 
-void Adafruit_ST7735::writedata(uint8_t c)
+void ST7735_t3::writedata(uint8_t c)
 {
 	rsport->PIO_SODR |=  rspinmask;
 	csport->PIO_CODR  |=  cspinmask;
@@ -150,7 +150,7 @@ void Adafruit_ST7735::writedata(uint8_t c)
 	csport->PIO_SODR  |=  cspinmask;
 } 
 
-void Adafruit_ST7735::writedata16(uint16_t d)
+void ST7735_t3::writedata16(uint16_t d)
 {
 	rsport->PIO_SODR |=  rspinmask;
 	csport->PIO_CODR  |=  cspinmask;
@@ -159,7 +159,7 @@ void Adafruit_ST7735::writedata16(uint16_t d)
 	csport->PIO_SODR  |=  cspinmask;
 }
 
-void Adafruit_ST7735::setBitrate(uint32_t n)
+void ST7735_t3::setBitrate(uint32_t n)
 {
 	uint32_t divider=1;
 	while (divider < 255) {
@@ -175,11 +175,11 @@ void Adafruit_ST7735::setBitrate(uint32_t n)
 /***************************************************************/
 #elif defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 
-inline void Adafruit_ST7735::writebegin()
+inline void ST7735_t3::writebegin()
 {
 }
 
-inline void Adafruit_ST7735::spiwrite(uint8_t c)
+inline void ST7735_t3::spiwrite(uint8_t c)
 {
 	for (uint8_t bit = 0x80; bit; bit >>= 1) {
 		*datapin = ((c & bit) ? 1 : 0);
@@ -188,7 +188,7 @@ inline void Adafruit_ST7735::spiwrite(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writecommand(uint8_t c)
+void ST7735_t3::writecommand(uint8_t c)
 {
 	if (hwSPI) {
 		KINETISK_SPI0.PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0);
@@ -201,7 +201,7 @@ void Adafruit_ST7735::writecommand(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writedata(uint8_t c)
+void ST7735_t3::writedata(uint8_t c)
 {
 	if (hwSPI) {
 		KINETISK_SPI0.PUSHR = c | (pcs_data << 16) | SPI_PUSHR_CTAS(0);
@@ -214,7 +214,7 @@ void Adafruit_ST7735::writedata(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writedata16(uint16_t d)
+void ST7735_t3::writedata16(uint16_t d)
 {
 	if (hwSPI) {
 		KINETISK_SPI0.PUSHR = d | (pcs_data << 16) | SPI_PUSHR_CTAS(1);
@@ -259,7 +259,7 @@ static uint8_t spi_configure_cs_pin(uint8_t pin)
 #define CTAR_6MHz    (SPI_CTAR_PBR(0) | SPI_CTAR_BR(1) | SPI_CTAR_CSSCK(1))
 #define CTAR_4MHz    (SPI_CTAR_PBR(1) | SPI_CTAR_BR(1) | SPI_CTAR_CSSCK(1))
 
-void Adafruit_ST7735::setBitrate(uint32_t n)
+void ST7735_t3::setBitrate(uint32_t n)
 {
 	if (n >= 24000000) {
 		ctar = CTAR_24MHz;
@@ -285,11 +285,11 @@ void Adafruit_ST7735::setBitrate(uint32_t n)
 /*     Teensy LC                                               */
 /***************************************************************/
 #elif defined(__MKL26Z64__)
-inline void Adafruit_ST7735::writebegin()
+inline void ST7735_t3::writebegin()
 {
 }
 
-inline void Adafruit_ST7735::spiwrite(uint8_t c)
+inline void ST7735_t3::spiwrite(uint8_t c)
 {
 //Serial.println(c, HEX);
 	if (hwSPI) {
@@ -307,7 +307,7 @@ inline void Adafruit_ST7735::spiwrite(uint8_t c)
 	}
 }
 
-void Adafruit_ST7735::writecommand(uint8_t c)
+void ST7735_t3::writecommand(uint8_t c)
 {
 	*rsport &= ~rspinmask;
 	*csport &= ~cspinmask;
@@ -315,7 +315,7 @@ void Adafruit_ST7735::writecommand(uint8_t c)
 	*csport |= cspinmask;
 }
 
-void Adafruit_ST7735::writedata(uint8_t c)
+void ST7735_t3::writedata(uint8_t c)
 {
 	*rsport |=  rspinmask;
 	*csport &= ~cspinmask;
@@ -323,7 +323,7 @@ void Adafruit_ST7735::writedata(uint8_t c)
 	*csport |= cspinmask;
 } 
 
-void Adafruit_ST7735::writedata16(uint16_t d)
+void ST7735_t3::writedata16(uint16_t d)
 {
 	*rsport |=  rspinmask;
 	*csport &= ~cspinmask;
@@ -332,7 +332,7 @@ void Adafruit_ST7735::writedata16(uint16_t d)
 	*csport |= cspinmask;
 } 
 
-void Adafruit_ST7735::setBitrate(uint32_t n)
+void ST7735_t3::setBitrate(uint32_t n)
 {
 	if (n >= 8000000) {
 		SPI.setClockDivider(SPI_CLOCK_DIV2);
@@ -487,7 +487,7 @@ static const uint8_t PROGMEM
 
 // Companion code to the above tables.  Reads and issues
 // a series of LCD commands stored in PROGMEM byte array.
-void Adafruit_ST7735::commandList(const uint8_t *addr)
+void ST7735_t3::commandList(const uint8_t *addr)
 {
 	uint8_t  numCommands, numArgs;
 	uint16_t ms;
@@ -513,7 +513,7 @@ void Adafruit_ST7735::commandList(const uint8_t *addr)
 
 
 // Initialization code common to both 'B' and 'R' type displays
-void Adafruit_ST7735::commonInit(const uint8_t *cmdList)
+void ST7735_t3::commonInit(const uint8_t *cmdList)
 {
 	colstart  = rowstart = 0; // May be overridden in init func
 
@@ -687,14 +687,14 @@ void Adafruit_ST7735::commonInit(const uint8_t *cmdList)
 
 
 // Initialization for ST7735B screens
-void Adafruit_ST7735::initB(void)
+void ST7735_t3::initB(void)
 {
 	commonInit(Bcmd);
 }
 
 
 // Initialization for ST7735R screens (green or red tabs)
-void Adafruit_ST7735::initR(uint8_t options)
+void ST7735_t3::initR(uint8_t options)
 {
 	commonInit(Rcmd1);
 	if (options == INITR_GREENTAB) {
@@ -717,7 +717,7 @@ void Adafruit_ST7735::initR(uint8_t options)
 }
 
 
-void Adafruit_ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
+void ST7735_t3::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
 	writecommand(ST7735_CASET); // Column addr set
 	writedata16(x0+colstart);   // XSTART 
@@ -729,13 +729,13 @@ void Adafruit_ST7735::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t 
 }
 
 
-void Adafruit_ST7735::pushColor(uint16_t color)
+void ST7735_t3::pushColor(uint16_t color)
 {
 	writebegin();
 	writedata16(color);
 }
 
-void Adafruit_ST7735::drawPixel(int16_t x, int16_t y, uint16_t color)
+void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
 	if ((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
 	setAddrWindow(x,y,x+1,y+1);
@@ -743,7 +743,7 @@ void Adafruit_ST7735::drawPixel(int16_t x, int16_t y, uint16_t color)
 }
 
 
-void Adafruit_ST7735::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+void ST7735_t3::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 {
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
@@ -755,7 +755,7 @@ void Adafruit_ST7735::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t co
 }
 
 
-void Adafruit_ST7735::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 {
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
@@ -768,7 +768,7 @@ void Adafruit_ST7735::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t co
 
 
 
-void Adafruit_ST7735::fillScreen(uint16_t color)
+void ST7735_t3::fillScreen(uint16_t color)
 {
 	fillRect(0, 0,  _width, _height, color);
 }
@@ -776,7 +776,7 @@ void Adafruit_ST7735::fillScreen(uint16_t color)
 
 
 // fill a rectangle
-void Adafruit_ST7735::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
+void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 {
 	// rudimentary clipping (drawChar w/big text requires this)
 	if ((x >= _width) || (y >= _height)) return;
@@ -799,7 +799,7 @@ void Adafruit_ST7735::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint1
 #define MADCTL_BGR 0x08
 #define MADCTL_MH  0x04
 
-void Adafruit_ST7735::setRotation(uint8_t m)
+void ST7735_t3::setRotation(uint8_t m)
 {
 	writecommand(ST7735_MADCTL);
 	rotation = m % 4; // can't be higher than 3
@@ -844,7 +844,7 @@ void Adafruit_ST7735::setRotation(uint8_t m)
 }
 
 
-void Adafruit_ST7735::invertDisplay(boolean i)
+void ST7735_t3::invertDisplay(boolean i)
 {
 	writecommand(i ? ST7735_INVON : ST7735_INVOFF);
 }

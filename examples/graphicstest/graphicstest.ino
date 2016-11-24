@@ -26,7 +26,7 @@
 #define sdcs 4   // CS for SD card, can use any pin
 
 #include <Adafruit_GFX.h>    // Core graphics library
-#include <Adafruit_ST7735.h> // Hardware-specific library
+#include <ST7735_t3.h> // Hardware-specific library
 #include <SPI.h>
 
 #if defined(__SAM3X8E__)
@@ -35,13 +35,13 @@
 #endif
 
 // Option 1: use any pins but a little slower
-Adafruit_ST7735 tft = Adafruit_ST7735(cs, dc, mosi, sclk, rst);
+ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
 // an output. This is much faster - also required if you want
 // to use the microSD card (see the image drawing example)
-//Adafruit_ST7735 tft = Adafruit_ST7735(cs, dc, rst);
+//ST7735_t3 tft = ST7735_t3(cs, dc, rst);
 float p = 3.1415926;
 
  

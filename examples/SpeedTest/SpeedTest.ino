@@ -12,10 +12,10 @@
 #define sdcs 4   // CS for SD card, can use any pin
 
 #include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
+#include <ST7735_t3.h>
 #include <SPI.h>
 
-Adafruit_ST7735 disp = Adafruit_ST7735(cs, dc, mosi, sclk, rst);
+ST7735_t3 disp = ST7735_t3(cs, dc, mosi, sclk, rst);
 
 #define RGB(r,g,b) (b<<11|g<<6|r)
 

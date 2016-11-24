@@ -17,7 +17,7 @@
  ****************************************************/
 
 #include <Adafruit_GFX.h>    // Core graphics library
-#include <Adafruit_ST7735.h> // Hardware-specific library
+#include <ST7735_t3.h> // Hardware-specific library
 #include <SPI.h>
 #include <SD.h>
 #if defined(__SAM3X8E__)
@@ -34,7 +34,7 @@
 #define rst  8   // RST can use any pin
 #define sdcs 4   // CS for SD card, can use any pin
 
-Adafruit_ST7735 tft = Adafruit_ST7735(cs, dc, mosi, sclk, rst);
+ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
 
 void setup(void) {
   Serial.begin(9600);
