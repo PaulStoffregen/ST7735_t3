@@ -4,7 +4,7 @@
   ----> http://www.adafruit.com/products/358
   as well as Adafruit raw 1.8" TFT display
   ----> http://www.adafruit.com/products/618
- 
+
   Check out the links above for our tutorials and wiring diagrams
   These displays use SPI to communicate, 4 or 5 pins are required to
   interface (RST is optional)
@@ -18,24 +18,19 @@
 
 // This Teensy3 native optimized version requires specific pins
 //
-#define sclk 13  // SCLK can also use pin 14
-#define mosi 11  // MOSI can also use pin 7
-#define cs   10  // CS & DC can use pins 2, 6, 9, 10, 15, 20, 21, 22, 23
-#define dc   9   //  but certain pairs must NOT be used: 2+10, 6+9, 20+23, 21+22
-#define rst  8   // RST can use any pin
-#define sdcs 4   // CS for SD card, can use any pin
+#define TFT_SCLK 13  // SCLK can also use pin 14
+#define TFT_MOSI 11  // MOSI can also use pin 7
+#define TFT_CS   10  // CS & DC can use pins 2, 6, 9, 10, 15, 20, 21, 22, 23
+#define TFT_DC    9  //  but certain pairs must NOT be used: 2+10, 6+9, 20+23, 21+22
+#define TFT_RST   8  // RST can use any pin
+#define SD_CS     4  // CS for SD card, can use any pin
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <ST7735_t3.h> // Hardware-specific library
 #include <SPI.h>
 
-#if defined(__SAM3X8E__)
-    #undef __FlashStringHelper::F(string_literal)
-    #define F(string_literal) string_literal
-#endif
-
 // Option 1: use any pins but a little slower
-ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
+ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
@@ -44,49 +39,16 @@ ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
 //ST7735_t3 tft = ST7735_t3(cs, dc, rst);
 float p = 3.1415926;
 
- 
-#define Neutral 0
-#define Press 1
-#define Up 2
-#define Down 3
-#define Right 4
-#define Left 5
- 
-// Check the joystick position
-int CheckJoystick()
-{
-  int joystickState = analogRead(3);
-  
-  if (joystickState < 50) return Left;
-  if (joystickState < 150) return Down;
-  if (joystickState < 250) return Press;
-  if (joystickState < 500) return Right;
-  if (joystickState < 650) return Up;
-  return Neutral;
-}
-
 
 void setup(void) {
-  pinMode(sdcs, INPUT_PULLUP);  // don't touch the SD card
+  pinMode(SD_CS, INPUT_PULLUP);  // don't touch the SD card
   Serial.begin(9600);
   Serial.print("hello!");
 
-  // Our supplier changed the 1.8" display slightly after Jan 10, 2012
-  // so that the alignment of the TFT had to be shifted by a few pixels
-  // this just means the init code is slightly different. Check the
-  // color of the tab to see which init code to try. If the display is
-  // cut off or has extra 'random' pixels on the top & left, try the
-  // other option!
-  // If you are seeing red and green color inversion, use Black Tab
-
   // Use this initializer if you're using a 1.8" TFT
-  tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
-  // If your TFT's plastic wrap has a Red Tab, use the following:
-  //tft.initR(INITR_REDTAB);   // initialize a ST7735R chip, red tab
-  // If your TFT's plastic wrap has a Green Tab, use the following:
-  //tft.initR(INITR_GREENTAB); // initialize a ST7735R chip, green tab
+  tft.initR(INITR_BLACKTAB);
   // Use this initializer (uncomment) if you're using a 1.44" TFT
-  //tft.initR(INITR_144GREENTAB);   // initialize a ST7735S chip, black tab
+  //tft.initR(INITR_144GREENTAB);
 
   Serial.println("init");
 
@@ -147,25 +109,6 @@ void loop() {
   delay(500);
   tft.invertDisplay(false);
   delay(500);
-  int joy = CheckJoystick();
-  switch (joy)
-  {
-    case Left:
-      Serial.println("Left");
-      break;
-    case Right:
-      Serial.println("Right");
-      break;
-    case Up:
-      Serial.println("Up");
-      break;
-    case Down:
-      Serial.println("Down");
-      break;
-    case Press:
-      Serial.println("Press");
-      break;
-  }
 }
 
 void testlines(uint16_t color) {

@@ -21,42 +21,28 @@
 #include <SPI.h>
 #include <SD.h>
 
-#if defined(__SAM3X8E__)
-    #undef __FlashStringHelper::F(string_literal)
-    #define F(string_literal) string_literal
-#endif
-
 // This Teensy3 native optimized version requires specific pins
 //
-#define sclk 13  // SCLK can also use pin 14
-#define mosi 11  // MOSI can also use pin 7
-#define cs   10  // CS & DC can use pins 2, 6, 9, 10, 15, 20, 21, 22, 23
-#define dc   9   //  but certain pairs must NOT be used: 2+10, 6+9, 20+23, 21+22
-#define rst  8   // RST can use any pin
-#define sdcs 4   // CS for SD card, can use any pin
+#define TFT_SCLK 13  // SCLK can also use pin 14
+#define TFT_MOSI 11  // MOSI can also use pin 7
+#define TFT_CS   10  // CS & DC can use pins 2, 6, 9, 10, 15, 20, 21, 22, 23
+#define TFT_DC    9  //  but certain pairs must NOT be used: 2+10, 6+9, 20+23, 21+22
+#define TFT_RST   8  // RST can use any pin
+#define SD_CS     4  // CS for SD card, can use any pin
 
-ST7735_t3 tft = ST7735_t3(cs, dc, mosi, sclk, rst);
+ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 void setup(void) {
+  pinMode(SD_CS, INPUT_PULLUP);  // keep SD CS high when not using SD card
   Serial.begin(9600);
 
-  // Our supplier changed the 1.8" display slightly after Jan 10, 2012
-  // so that the alignment of the TFT had to be shifted by a few pixels
-  // this just means the init code is slightly different. Check the
-  // color of the tab to see which init code to try. If the display is
-  // cut off or has extra 'random' pixels on the top & left, try the
-  // other option!
-  // If you are seeing red and green color inversion, use Black Tab
-
-  // If your TFT's plastic wrap has a Black Tab, use the following:
-  tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
-  // If your TFT's plastic wrap has a Red Tab, use the following:
-  //tft.initR(INITR_REDTAB);   // initialize a ST7735R chip, red tab
-  // If your TFT's plastic wrap has a Green Tab, use the following:
-  //tft.initR(INITR_GREENTAB); // initialize a ST7735R chip, green tab
+  // Use this initializer if you're using a 1.8" TFT
+  tft.initR(INITR_BLACKTAB);
+  // Use this initializer (uncomment) if you're using a 1.44" TFT
+  //tft.initR(INITR_144GREENTAB);
 
   Serial.print("Initializing SD card...");
-  if (!SD.begin(sdcs)) {
+  if (!SD.begin(SD_CS)) {
     Serial.println("failed!");
     return;
   }
