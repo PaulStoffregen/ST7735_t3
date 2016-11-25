@@ -1,5 +1,5 @@
 /***************************************************
-  This is an example sketch for the Adafruit 1.8" TFT shield with joystick
+This is an example sketch for the Adafruit 1.8" TFT shield with joystick
   ----> http://www.adafruit.com/products/802
 
   Check out the links above for our tutorials and wiring diagrams
@@ -47,7 +47,7 @@ void setup(void) {
   //tft.initR(INITR_144GREENTAB);
 
   Serial.println("OK!");
-  tft.fillScreen(0x0000);
+  tft.fillScreen(ST7735_BLACK);
 }
 
 
