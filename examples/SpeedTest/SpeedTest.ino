@@ -50,7 +50,7 @@ void testlines(uint16_t color)
 		disp.drawLine(disp.width()-1, disp.height()-1, 0, y, color);
 }
 
-void testdrawtext(char *text, uint16_t color, uint16_t bgcolor)
+void testdrawtext(const char *text, uint16_t color, uint16_t bgcolor)
 {
 	disp.setCursor(0, 0);
 	disp.setTextColor(color, bgcolor);

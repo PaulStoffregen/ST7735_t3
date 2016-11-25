@@ -150,7 +150,7 @@ void testlines(uint16_t color) {
   }
 }
 
-void testdrawtext(char *text, uint16_t color) {
+void testdrawtext(const char *text, uint16_t color) {
   tft.setCursor(0, 0);
   tft.setTextColor(color);
   tft.setTextWrap(true);
