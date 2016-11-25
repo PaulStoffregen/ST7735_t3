@@ -684,11 +684,11 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 	if (_rst) {
 		pinMode(_rst, OUTPUT);
 		digitalWrite(_rst, HIGH);
-		delay(500);
+		delay(5);
 		digitalWrite(_rst, LOW);
-		delay(500);
+		delay(100);
 		digitalWrite(_rst, HIGH);
-		delay(500);
+		delay(5);
 	}
 
 	if(cmdList) commandList(cmdList);
