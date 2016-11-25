@@ -4,7 +4,7 @@
   ----> http://www.adafruit.com/products/358
   as well as Adafruit raw 1.8" TFT display
   ----> http://www.adafruit.com/products/618
- 
+
   Check out the links above for our tutorials and wiring diagrams
   These displays use SPI to communicate, 4 or 5 pins are required to
   interface (RST is optional)
@@ -16,33 +16,17 @@
   MIT license, all text above must be included in any redistribution
  ****************************************************/
 
-#ifndef _ADAFRUIT_ST7735H_
-#define _ADAFRUIT_ST7735H_
+#ifndef __ST7735_t3_H_
+#define __ST7735_t3_H_
 
-#if ARDUINO >= 100
- #include "Arduino.h"
- #include "Print.h"
-#else
- #include "WProgram.h"
-#endif
+#include "Arduino.h"
 
 #include <Adafruit_GFX.h>
-
-#if defined(__SAM3X8E__)
-#include <include/pio.h>
-  #define PROGMEM
-  #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
-  #define pgm_read_word(addr) (*(const unsigned short *)(addr))
-typedef unsigned char prog_uchar;
-#endif
-#ifdef __AVR__
-  #include <avr/pgmspace.h>
-#endif
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
 #define INITR_REDTAB   0x1
-#define INITR_BLACKTAB   0x2
+#define INITR_BLACKTAB 0x2
 
 #define INITR_18GREENTAB    INITR_GREENTAB
 #define INITR_18REDTAB      INITR_REDTAB
@@ -108,7 +92,7 @@ typedef unsigned char prog_uchar;
 #define	ST7735_GREEN   0x07E0
 #define ST7735_CYAN    0x07FF
 #define ST7735_MAGENTA 0xF81F
-#define ST7735_YELLOW  0xFFE0  
+#define ST7735_YELLOW  0xFFE0
 #define ST7735_WHITE   0xFFFF
 
 
@@ -173,7 +157,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
             datapinmask, clkpinmask, cspinmask, rspinmask,
             colstart, rowstart; // some displays need this changed
 #endif //  #if defined(__SAM3X8E__)
-  
+
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
   uint8_t colstart, rowstart;
