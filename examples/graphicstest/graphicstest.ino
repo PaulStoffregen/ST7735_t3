@@ -79,12 +79,14 @@ void setup(void) {
   // other option!
   // If you are seeing red and green color inversion, use Black Tab
 
-  // If your TFT's plastic wrap has a Black Tab, use the following:
+  // Use this initializer if you're using a 1.8" TFT
   tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
   // If your TFT's plastic wrap has a Red Tab, use the following:
   //tft.initR(INITR_REDTAB);   // initialize a ST7735R chip, red tab
   // If your TFT's plastic wrap has a Green Tab, use the following:
   //tft.initR(INITR_GREENTAB); // initialize a ST7735R chip, green tab
+  // Use this initializer (uncomment) if you're using a 1.44" TFT
+  //tft.initR(INITR_144GREENTAB);   // initialize a ST7735S chip, black tab
 
   Serial.println("init");
 
@@ -252,10 +254,10 @@ void testtriangles() {
   tft.fillScreen(ST7735_BLACK);
   int color = 0xF800;
   int t;
-  int w = 63;
-  int x = 159;
+  int w = tft.width()/2;
+  int x = tft.height()-1;
   int y = 0;
-  int z = 127;
+  int z = tft.width();
   for(t = 0 ; t <= 15; t+=1) {
     tft.drawTriangle(w, y, y, x, z, x, color);
     x-=4;
@@ -273,9 +275,9 @@ void testroundrects() {
   for(t = 0 ; t <= 4; t+=1) {
     int x = 0;
     int y = 0;
-    int w = 127;
-    int h = 159;
-    for(i = 0 ; i <= 24; i+=1) {
+    int w = tft.width()-2;
+    int h = tft.height()-2;
+    for(i = 0 ; i <= 16; i+=1) {
       tft.drawRoundRect(x, y, w, h, 5, color);
       x+=2;
       y+=3;
