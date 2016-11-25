@@ -38,7 +38,7 @@ ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 #define BUTTON_LEFT 5
 
 void setup(void) {
-  pinMode(cs, INPUT_PULLUP);  // keep SD CS high when not using SD card
+  pinMode(SD_CS, INPUT_PULLUP);  // keep SD CS high when not using SD card
   Serial.begin(9600);
 
   // Use this initializer if you're using a 1.8" TFT
@@ -104,6 +104,11 @@ void loop() {
     delay(2000);
     Serial.print("Initializing SD card...");
     if (!SD.begin(SD_CS)) {
+      tft.fillScreen(ST7735_BLACK);
+      tft.setCursor(5, tft.height()/2 - 6);
+      tft.print("Unable to access");
+      tft.setCursor(32, tft.height()/2 + 6);
+      tft.print("SD card");
       Serial.println("failed!");
       return;
     }
@@ -147,6 +152,14 @@ void bmpDraw(char *filename, uint8_t x, uint8_t y) {
 
   // Open requested file on SD card
   if ((bmpFile = SD.open(filename)) == NULL) {
+    tft.fillScreen(ST7735_BLACK);
+    tft.setCursor(12, tft.height()/2 - 12);
+    tft.print("Unable to");
+    tft.setCursor(12, tft.height()/2 - 0);
+    tft.print("read file: ");
+    tft.setCursor(12, tft.height()/2 + 12);
+    tft.setTextColor(ST7735_YELLOW);
+    tft.print(filename);
     Serial.print("File not found");
     return;
   }

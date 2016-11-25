@@ -49,7 +49,14 @@ void setup(void) {
   Serial.print("Initializing SD card...");
   if (!SD.begin(SD_CS)) {
     Serial.println("failed!");
-    return;
+    tft.fillScreen(ST7735_BLACK);
+    tft.setCursor(5, tft.height()/2 - 6);
+    tft.print("Unable to access");
+    tft.setCursor(32, tft.height()/2 + 6);
+    tft.print("SD card");
+    while (1) {
+      // do nothing if SD card not working
+    }
   }
   Serial.println("OK!");
 
@@ -102,6 +109,14 @@ void bmpDraw(char *filename, uint8_t x, uint8_t y) {
   // Open requested file on SD card
   if ((bmpFile = SD.open(filename)) == NULL) {
     Serial.print("File not found");
+    tft.fillScreen(ST7735_BLACK);
+    tft.setCursor(12, tft.height()/2 - 12);
+    tft.print("Unable to");
+    tft.setCursor(12, tft.height()/2 - 0);
+    tft.print("read file: ");
+    tft.setCursor(12, tft.height()/2 + 12);
+    tft.setTextColor(ST7735_YELLOW);
+    tft.print(filename);
     return;
   }
 
