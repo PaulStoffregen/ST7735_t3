@@ -20,8 +20,11 @@
 #define __ST7735_t3_H_
 
 #include "Arduino.h"
-
+#include <SPI.h>
 #include <Adafruit_GFX.h>
+
+
+#define ST7735_SPICLOCK 12000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
@@ -86,10 +89,10 @@
 #define ST7735_GMCTRN1 0xE1
 
 // Color definitions
-#define	ST7735_BLACK   0x0000
-#define	ST7735_BLUE    0x001F
-#define	ST7735_RED     0xF800
-#define	ST7735_GREEN   0x07E0
+#define ST7735_BLACK   0x0000
+#define ST7735_BLUE    0x001F
+#define ST7735_RED     0xF800
+#define ST7735_GREEN   0x07E0
 #define ST7735_CYAN    0x07FF
 #define ST7735_MAGENTA 0xF81F
 #define ST7735_YELLOW  0xFFE0
@@ -116,6 +119,16 @@ class ST7735_t3 : public Adafruit_GFX {
            setRotation(uint8_t r),
            invertDisplay(boolean i);
 
+  void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+    __attribute__((always_inline)) {
+        writecommand(ST7735_CASET); // Column addr set
+        writedata16(x0+colstart);   // XSTART 
+        writedata16(x1+colstart);   // XEND
+        writecommand(ST7735_RASET); // Row addr set
+        writedata16(y0+rowstart);   // YSTART
+        writedata16(y1+rowstart);   // YEND
+  }
+
   // Pass 8-bit (each) R,G,B, get back 16-bit packed color
   inline uint16_t Color565(uint8_t r, uint8_t g, uint8_t b) {
            return ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
@@ -133,30 +146,20 @@ class ST7735_t3 : public Adafruit_GFX {
  private:
   uint8_t  tabcolor;
 
-  void     writebegin(),
+  void     beginSPITransaction(),
+           endSPITransaction(),
            spiwrite(uint8_t),
            writecommand(uint8_t c),
+           writecommand_last(uint8_t c),
            writedata(uint8_t d),
            writedata16(uint16_t d),
+           writedata16_last(uint16_t d),
            commandList(const uint8_t *addr),
            commonInit(const uint8_t *cmdList);
 //uint8_t  spiread(void);
 
   boolean  hwSPI;
 
-#if defined(__AVR__)
-volatile uint8_t *dataport, *clkport, *csport, *rsport;
-  uint8_t  _cs, _rs, _rst, _sid, _sclk,
-           datapinmask, clkpinmask, cspinmask, rspinmask,
-           colstart, rowstart; // some displays need this changed
-#endif //  #ifdef __AVR__
-
-#if defined(__SAM3X8E__)
-  Pio *dataport, *clkport, *csport, *rsport;
-  uint32_t  _cs, _rs, _rst, _sid, _sclk,
-            datapinmask, clkpinmask, cspinmask, rspinmask,
-            colstart, rowstart; // some displays need this changed
-#endif //  #if defined(__SAM3X8E__)
 
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
@@ -164,15 +167,97 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t pcs_data, pcs_command;
   uint32_t ctar;
   volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
-#endif
 
+  SPIClass *_pspi = nullptr;
+  KINETISK_SPI_t *_pkinetisk_spi;
+  void waitTransmitComplete(void);
+  void waitTransmitComplete(uint32_t mcr);
+  uint32_t _fifo_full_test;
+
+
+#endif
+#if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+  SPIClass *_pspi = nullptr;
+  IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
+  uint8_t _pending_rx_count = 0;
+  uint32_t _spi_tcr_current;
+
+
+  void DIRECT_WRITE_LOW(volatile uint32_t * base, uint32_t mask)  __attribute__((always_inline)) {
+    *(base+34) = mask;
+  }
+  void DIRECT_WRITE_HIGH(volatile uint32_t * base, uint32_t mask)  __attribute__((always_inline)) {
+    *(base+33) = mask;
+  }
+  
+  #define TCR_MASK  (LPSPI_TCR_PCS(3) | LPSPI_TCR_FRAMESZ(31) | LPSPI_TCR_CONT | LPSPI_TCR_RXMSK )
+
+  void maybeUpdateTCR(uint32_t requested_tcr_state) {
+  if ((_spi_tcr_current & TCR_MASK) != requested_tcr_state) {
+      bool dc_state_change = (_spi_tcr_current & LPSPI_TCR_PCS(3)) != (requested_tcr_state & LPSPI_TCR_PCS(3));
+      _spi_tcr_current = (_spi_tcr_current & ~TCR_MASK) | requested_tcr_state ;
+      // only output when Transfer queue is empty.
+      if (!dc_state_change || !_dcpinmask) {
+        while ((_pimxrt_spi->FSR & 0x1f) )  ;
+        _pimxrt_spi->TCR = _spi_tcr_current;  // update the TCR
+
+      } else {
+        waitTransmitComplete();
+        if (requested_tcr_state & LPSPI_TCR_PCS(3)) DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+        else DIRECT_WRITE_LOW(_dcport, _dcpinmask);
+        _pimxrt_spi->TCR = _spi_tcr_current & ~(LPSPI_TCR_PCS(3) | LPSPI_TCR_CONT); // go ahead and update TCR anyway?  
+
+      }
+    }
+  }
+
+ 
+  void waitFifoNotFull(void) {
+    uint32_t tmp __attribute__((unused));
+    do {
+        if ((_pimxrt_spi->RSR & LPSPI_RSR_RXEMPTY) == 0)  {
+            tmp = _pimxrt_spi->RDR;  // Read any pending RX bytes in
+            if (_pending_rx_count) _pending_rx_count--; //decrement count of bytes still levt
+        }
+    } while ((_pimxrt_spi->SR & LPSPI_SR_TDF) == 0) ;
+ }
+ void waitTransmitComplete(void)  {
+    uint32_t tmp __attribute__((unused));
+//    digitalWriteFast(2, HIGH);
+
+    while (_pending_rx_count) {
+        if ((_pimxrt_spi->RSR & LPSPI_RSR_RXEMPTY) == 0)  {
+            tmp = _pimxrt_spi->RDR;  // Read any pending RX bytes in
+            _pending_rx_count--; //decrement count of bytes still levt
+        }
+    }
+    _pimxrt_spi->CR = LPSPI_CR_MEN | LPSPI_CR_RRF;       // Clear RX FIFO
+//    digitalWriteFast(2, LOW);
+}
+
+
+  uint8_t  _cs, _rs, _rst, _sid, _sclk;
+
+  uint32_t _cspinmask;
+  volatile uint32_t *_csport;
+  uint32_t _dcpinmask;
+  volatile uint32_t *_dcport;
+  uint32_t _mosipinmask;
+  volatile uint32_t *_mosiport;
+  uint32_t _sckpinmask;
+  volatile uint32_t *_sckport;
+  
+
+  uint8_t colstart, rowstart;
+  uint32_t ctar;
+#endif
 #if defined(__MKL26Z64__)
 volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
            datapinmask, clkpinmask, cspinmask, rspinmask,
            colstart, rowstart; // some displays need this changed
   boolean  hwSPI1;
-#endif //  #ifdef __AVR__
+#endif 
 
 };
 
