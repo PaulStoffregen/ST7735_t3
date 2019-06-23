@@ -618,7 +618,8 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 		_pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0)); // 4 MHz (half speed)
 		_pspi->endTransaction();
 		_spi_tcr_current = _pimxrt_spi->TCR; // get the current TCR value 
-
+			// TODO:  Need to setup DC to actually work.
+	
 	} else {
 		hwSPI = false;
 		_sckport = portOutputRegister(_sclk);
@@ -636,10 +637,18 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 	_cspinmask = digitalPinToBitMask(_cs);
 	pinMode(_cs, OUTPUT);	
 	DIRECT_WRITE_HIGH(_csport, _cspinmask);
-	_dcport = portOutputRegister(_rs);
-	_dcpinmask = digitalPinToBitMask(_rs);
-	pinMode(_rs, OUTPUT);	
-	DIRECT_WRITE_LOW(_dcport, _dcpinmask);
+	if (_pspi && _pspi->pinIsChipSelect(_rs)) {
+	 	_pspi->setCS(_rs);
+	 	_dcport = 0;
+	 	_dcpinmask = 0;
+	} else {
+		//Serial.println("ILI9341_t3n: Error not DC is not valid hardware CS pin");
+		_dcport = portOutputRegister(_rs);
+		_dcpinmask = digitalPinToBitMask(_rs);
+		pinMode(_rs, OUTPUT);	
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+	}
+	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
 
     // Teensy LC
 #elif defined(__MKL26Z64__)
@@ -826,10 +835,6 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 			writedata16(color);
 		}
 		writedata16_last(color);
-		if (y > 1 && (y & 1)) {
-		//	endSPITransaction();
-		//	beginSPITransaction();
-		}
 	}
 	endSPITransaction();
 }

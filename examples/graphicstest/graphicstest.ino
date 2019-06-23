@@ -32,16 +32,29 @@ as well as Adafruit raw 1.8" TFT display
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <ST7735_t3.h> // Hardware-specific library
+#include <ST7789_t3.h> // Hardware-specific library
 #include <SPI.h>
 
 // Option 1: use any pins but a little slower
+// Note: code will detect if specified pins are the hardware SPI pins
+//       and will use hardware SPI if appropriate
+// For 1.44" and 1.8" TFT with ST7735 use
 ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+
+// For 1.54" TFT with ST7789
+//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
 // an output. This is much faster - also required if you want
 // to use the microSD card (see the image drawing example)
+// For 1.44" and 1.8" TFT with ST7735 use
 //ST7735_t3 tft = ST7735_t3(cs, dc, rst);
+
+// For 1.54" TFT with ST7789
+//ST7789_t3 tft = ST7789_t3(TFT_CS,  TFT_DC, TFT_RST);
+
 float p = 3.1415926;
 
 
@@ -54,6 +67,9 @@ void setup(void) {
   tft.initR(INITR_BLACKTAB);
   // Use this initializer (uncomment) if you're using a 1.44" TFT
   //tft.initR(INITR_144GREENTAB);
+
+  // Use this initializer (uncomment) if you're using a 1.54" 240x240 TFT
+  //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
 
   Serial.println("init");
 
