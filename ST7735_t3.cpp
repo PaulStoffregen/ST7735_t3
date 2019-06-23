@@ -17,6 +17,7 @@
  ****************************************************/
 
 #include "ST7735_t3.h"
+#include "ST7789_t3.h"
 #include <limits.h>
 #include "pins_arduino.h"
 #include "wiring_private.h"
@@ -53,26 +54,6 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 /*     Teensy 3.0, 3.1, 3.2, 3.5, 3.6                          */
 /***************************************************************/
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
-
-inline void ST7735_t3::beginSPITransaction()
-{
-	if (_pspi) {
-		_pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-	}
-	if (cspin) {
-		*cspin = 0;
-	}
-}
-
-inline void ST7735_t3::endSPITransaction()
-{
-	if (cspin)
-		*cspin = 1;
-	if (_pspi) {
-		_pspi->endTransaction();	
-	}
-}
-
 
 inline void ST7735_t3::waitTransmitComplete(void)  {
     uint32_t tmp __attribute__((unused));
@@ -199,22 +180,6 @@ void ST7735_t3::setBitrate(uint32_t n)
 /*     Teensy 4.                                               */
 /***************************************************************/
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
-inline void ST7735_t3::beginSPITransaction()
-{
-	if (hwSPI) {
-		_pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-	}
-	DIRECT_WRITE_LOW(_csport, _cspinmask);
-}
-
-inline void ST7735_t3::endSPITransaction()
-{
-	DIRECT_WRITE_HIGH(_csport, _cspinmask);
-	if (hwSPI) {
-		_pspi->endTransaction();	
-	}
-}
-
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
 //Serial.println(c, HEX);
@@ -265,7 +230,7 @@ void ST7735_t3::writedata(uint8_t c)
 		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
 		_pimxrt_spi->TDR = c;
 		_pending_rx_count++;	//
-		waitFifoNotFull();
+		waitTransmitComplete();
 	} else {
 		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
 		spiwrite(c);
@@ -321,25 +286,6 @@ void ST7735_t3::setBitrate(uint32_t n)
 /***************************************************************/
 #elif defined(__MKL26Z64__)
 
-inline void ST7735_t3::beginSPITransaction()
-{
-	if (hwSPI) {
-		SPI.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-	} else if (hwSPI1) {
-		SPI1.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-	}
-	*csport &= ~cspinmask;
-}
-
-inline void ST7735_t3::endSPITransaction()
-{
-	*csport |= cspinmask;
-	if (hwSPI) {
-		SPI.endTransaction();	
-	} else if (hwSPI1) {
-		SPI1.endTransaction();	
-	}
-}
 
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
@@ -563,7 +509,7 @@ void ST7735_t3::commandList(const uint8_t *addr)
 	numCommands = pgm_read_byte(addr++);		// Number of commands to follow
 	//Serial.printf("CommandList: numCmds:%d\n", numCommands); Serial.flush();
 	while(numCommands--) {				// For each command...
-		writecommand(pgm_read_byte(addr++));	//   Read, issue command
+		writecommand_last(pgm_read_byte(addr++));	//   Read, issue command
 		numArgs  = pgm_read_byte(addr++);	//   Number of args to follow
 		ms       = numArgs & DELAY;		//   If hibit set, delay follows args
 		numArgs &= ~DELAY;			//   Mask out delay bit
@@ -575,17 +521,20 @@ void ST7735_t3::commandList(const uint8_t *addr)
 			ms = pgm_read_byte(addr++);	// Read post-command delay time (ms)
 			if(ms == 255) ms = 500;		// If 255, delay for 500 ms
 			//Serial.printf("delay %d\n", ms); Serial.flush();
+			endSPITransaction();
 			delay(ms);
+			beginSPITransaction();
 		}
 	}
-//	endSPITransaction();
+	endSPITransaction();
 }
 
 
 // Initialization code common to both 'B' and 'R' type displays
 void ST7735_t3::commonInit(const uint8_t *cmdList)
 {
-	colstart  = rowstart = 0; // May be overridden in init func
+	_colstart  = _rowstart = 0; // May be overridden in init func
+  	_ystart = _xstart = 0;
 
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 	if (_sid == (uint8_t)-1) _sid = 11;
@@ -743,15 +692,16 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 	*csport &= ~cspinmask;
 
 #endif
-
+	// BUGBUG
+//	digitalWrite(_cs, LOW);
 	if (_rst) {
 		pinMode(_rst, OUTPUT);
 		digitalWrite(_rst, HIGH);
-		delay(5);
+		delay(500);
 		digitalWrite(_rst, LOW);
-		delay(100);
+		delay(500);
 		digitalWrite(_rst, HIGH);
-		delay(5);
+		delay(500);
 	}
 
 	if(cmdList) commandList(cmdList);
@@ -771,15 +721,15 @@ void ST7735_t3::initR(uint8_t options)
 	commonInit(Rcmd1);
 	if (options == INITR_GREENTAB) {
 		commandList(Rcmd2green);
-		colstart = 2;
-		rowstart = 1;
+		_colstart = 2;
+		_rowstart = 1;
 	} else if(options == INITR_144GREENTAB) {
 		_height = ST7735_TFTHEIGHT_144;
 		commandList(Rcmd2green144);
-		colstart = 2;
-		rowstart = 3;
+		_colstart = 2;
+		_rowstart = 3;
 	} else {
-		// colstart, rowstart left at default '0' values
+		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
 	}
 	commandList(Rcmd3);
@@ -877,8 +827,8 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 		}
 		writedata16_last(color);
 		if (y > 1 && (y & 1)) {
-			endSPITransaction();
-			beginSPITransaction();
+		//	endSPITransaction();
+		//	beginSPITransaction();
 		}
 	}
 	endSPITransaction();
@@ -911,6 +861,8 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			_height = ST7735_TFTHEIGHT_18;
 		}
+	    _xstart = _colstart;
+	    _ystart = _rowstart;
 		break;
 	case 1:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -924,6 +876,8 @@ void ST7735_t3::setRotation(uint8_t m)
 			_width = ST7735_TFTHEIGHT_18;
 		}
 		_height = ST7735_TFTWIDTH;
+     	_ystart = _colstart;
+     	_xstart = _rowstart;
 		break;
 	case 2:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -937,6 +891,8 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			_height = ST7735_TFTHEIGHT_18;
 		}
+     	_xstart = _colstart;
+     	_ystart = _rowstart;
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -950,6 +906,8 @@ void ST7735_t3::setRotation(uint8_t m)
 			_width = ST7735_TFTHEIGHT_18;
 		}
 		_height = ST7735_TFTWIDTH;
+     	_ystart = _colstart;
+     	_xstart = _rowstart;
 		break;
 	}
 	endSPITransaction();
@@ -963,4 +921,3 @@ void ST7735_t3::invertDisplay(boolean i)
 	endSPITransaction();
 
 }
-

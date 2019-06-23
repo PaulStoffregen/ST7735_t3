@@ -24,7 +24,7 @@
 #include <Adafruit_GFX.h>
 
 
-#define ST7735_SPICLOCK 12000000
+#define ST7735_SPICLOCK 24000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
@@ -114,19 +114,18 @@ class ST7735_t3 : public Adafruit_GFX {
            drawPixel(int16_t x, int16_t y, uint16_t color),
            drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color),
            drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color),
-           fillRect(int16_t x, int16_t y, int16_t w, int16_t h,
-             uint16_t color),
-           setRotation(uint8_t r),
-           invertDisplay(boolean i);
+           fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+  virtual void setRotation(uint8_t r);
+  void     invertDisplay(boolean i);
 
   void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     __attribute__((always_inline)) {
         writecommand(ST7735_CASET); // Column addr set
-        writedata16(x0+colstart);   // XSTART 
-        writedata16(x1+colstart);   // XEND
+        writedata16(x0+_xstart);   // XSTART 
+        writedata16(x1+_xstart);   // XEND
         writecommand(ST7735_RASET); // Row addr set
-        writedata16(y0+rowstart);   // YSTART
-        writedata16(y1+rowstart);   // YEND
+        writedata16(y0+_ystart);   // YSTART
+        writedata16(y1+_ystart);   // YEND
   }
 
   // Pass 8-bit (each) R,G,B, get back 16-bit packed color
@@ -143,12 +142,10 @@ class ST7735_t3 : public Adafruit_GFX {
   void     dummyclock(void);
   */
 
- private:
+ protected:
   uint8_t  tabcolor;
 
-  void     beginSPITransaction(),
-           endSPITransaction(),
-           spiwrite(uint8_t),
+  void     spiwrite(uint8_t),
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
@@ -161,9 +158,9 @@ class ST7735_t3 : public Adafruit_GFX {
   boolean  hwSPI;
 
 
+  uint8_t _colstart, _rowstart, _xstart, _ystart;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
-  uint8_t colstart, rowstart;
   uint8_t pcs_data, pcs_command;
   uint32_t ctar;
   volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
@@ -173,6 +170,17 @@ class ST7735_t3 : public Adafruit_GFX {
   void waitTransmitComplete(void);
   void waitTransmitComplete(uint32_t mcr);
   uint32_t _fifo_full_test;
+
+  inline void beginSPITransaction() {
+    if (_pspi) _pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
+    if (cspin) *cspin = 0;
+  }
+
+  inline void endSPITransaction()
+  {
+    if (cspin) *cspin = 1;
+    if (_pspi) _pspi->endTransaction();  
+  }
 
 
 #endif
@@ -209,6 +217,16 @@ class ST7735_t3 : public Adafruit_GFX {
 
       }
     }
+  }
+
+  inline void beginSPITransaction() {
+    if (hwSPI) _pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
+    DIRECT_WRITE_LOW(_csport, _cspinmask);
+  }
+
+  inline void endSPITransaction() {
+    DIRECT_WRITE_HIGH(_csport, _cspinmask);
+    if (hwSPI) _pspi->endTransaction();  
   }
 
  
@@ -248,15 +266,24 @@ class ST7735_t3 : public Adafruit_GFX {
   volatile uint32_t *_sckport;
   
 
-  uint8_t colstart, rowstart;
   uint32_t ctar;
 #endif
 #if defined(__MKL26Z64__)
 volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
-           datapinmask, clkpinmask, cspinmask, rspinmask,
-           colstart, rowstart; // some displays need this changed
+           datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
+  inline void beginSPITransaction() {
+    if (hwSPI) SPI.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
+    else if (hwSPI1) SPI1.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
+    *csport &= ~cspinmask;
+  }
+
+  inline void ST7735_t3::endSPITransaction() {
+    *csport |= cspinmask;
+    if (hwSPI) SPI.endTransaction(); 
+    else if (hwSPI1)  SPI1.endTransaction();  
+  }
 #endif 
 
 };
