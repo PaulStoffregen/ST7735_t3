@@ -735,8 +735,8 @@ void ST7735_t3::initR(uint8_t options)
 	} else if(options == INITR_144GREENTAB) {
 		_height = ST7735_TFTHEIGHT_144;
 		commandList(Rcmd2green144);
-		_colstart = 2;
-		_rowstart = 3;
+		_colstart = 0;
+		_rowstart = 32;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
@@ -750,6 +750,7 @@ void ST7735_t3::initR(uint8_t options)
 	}
 
 	tabcolor = options;
+	setRotation(0);
 }
 
 
@@ -897,7 +898,7 @@ void ST7735_t3::setRotation(uint8_t m)
 			_height = ST7735_TFTHEIGHT_18;
 		}
      	_xstart = _colstart;
-     	_ystart = _rowstart;
+     	_ystart = 0;//_rowstart;
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -912,7 +913,7 @@ void ST7735_t3::setRotation(uint8_t m)
 		}
 		_height = ST7735_TFTWIDTH;
      	_ystart = _colstart;
-     	_xstart = _rowstart;
+     	_xstart = 0;//_rowstart;
 		break;
 	}
 	endSPITransaction();

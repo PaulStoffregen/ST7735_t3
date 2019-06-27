@@ -51,17 +51,18 @@ void  ST7789_t3::setRotation(uint8_t m)
      writedata(ST77XX_MADCTL_RGB);
  
      _xstart = _colstart;
-     _ystart = _rowstart;
+     _ystart = 0; //_rowstart;
      break;
 
    case 3:
      writedata(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
 
-     _xstart = _rowstart;
+     _xstart = 0; //_rowstart;
      _ystart = _colstart;
      break;
   }
   endSPITransaction();
+//  Serial.printf("Set rotation %d start(%d %d) row: %d, col: %d\n", m, _xstart, _ystart, _rowstart, _colstart);
 }
 #define ST7789_240x240_XSTART 0
 #define ST7789_240x240_YSTART 80
