@@ -32,7 +32,7 @@ class ST7789_t3 : public ST7735_t3 {
 
   virtual void  setRotation(uint8_t m);
 
-  void  init(uint16_t width, uint16_t height);
+  void  init(uint16_t width, uint16_t height, uint8_t mode=SPI_MODE0);
 };
 
 

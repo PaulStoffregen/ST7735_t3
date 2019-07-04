@@ -35,6 +35,7 @@
 #define INITR_18REDTAB      INITR_REDTAB
 #define INITR_18BLACKTAB    INITR_BLACKTAB
 #define INITR_144GREENTAB   0x1
+#define INITR_144GREENTAB_OFFSET   0x4
 
 #define ST7735_TFTWIDTH  128
 // for 1.44" display
@@ -117,6 +118,9 @@ class ST7735_t3 : public Adafruit_GFX {
            fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   virtual void setRotation(uint8_t r);
   void     invertDisplay(boolean i);
+  void     setRowColStart(uint8_t x, uint8_t y);
+  uint8_t  rowStart() {return _rowstart;}
+  uint8_t  colStart() {return _colstart;}
 
   void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     __attribute__((always_inline)) {
@@ -152,13 +156,13 @@ class ST7735_t3 : public Adafruit_GFX {
            writedata16(uint16_t d),
            writedata16_last(uint16_t d),
            commandList(const uint8_t *addr),
-           commonInit(const uint8_t *cmdList);
+           commonInit(const uint8_t *cmdList, uint8_t mode=SPI_MODE0);
 //uint8_t  spiread(void);
 
   boolean  hwSPI;
 
 
-  uint8_t _colstart, _rowstart, _xstart, _ystart;
+  uint8_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
   uint8_t pcs_data, pcs_command;
@@ -186,6 +190,7 @@ class ST7735_t3 : public Adafruit_GFX {
 #endif
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
+  SPISettings _spiSettings;
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
   uint8_t _pending_rx_count = 0;
   uint32_t _spi_tcr_current;
@@ -220,8 +225,8 @@ class ST7735_t3 : public Adafruit_GFX {
   }
 
   inline void beginSPITransaction() {
-    if (hwSPI) _pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-    DIRECT_WRITE_LOW(_csport, _cspinmask);
+    if (hwSPI) _pspi->beginTransaction(_spiSettings);
+    if (_cs != 0xff)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
   inline void endSPITransaction() {

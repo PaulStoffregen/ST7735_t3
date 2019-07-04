@@ -34,6 +34,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_sclk = sclk;
 	_rst  = rst;
 	hwSPI = false;
+	_screenHeight = ST7735_TFTHEIGHT_18;
 }
 
 
@@ -46,6 +47,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 	_rst  = rst;
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
+	_screenHeight = ST7735_TFTHEIGHT_18;
 }
 
 
@@ -480,6 +482,15 @@ static const uint8_t PROGMEM
       0x00, 0x00,             //     XSTART = 0
       0x00, 0x7F },           //     XEND = 127
 
+  Rcmd2green144_offset[] = {         // Init for 7735R, part 2 (green 1.44 tab)
+    2,                        //  2 commands in list:
+    ST7735_CASET  , 4      ,  //  1: Column addr set, 4 args, no delay:
+      0x00, 0x02,             //     XSTART = 0
+      0x00, 0x7F+0x02,             //     XEND = 127
+    ST7735_RASET  , 4      ,  //  2: Row addr set, 4 args, no delay:
+      0x00, 0x03,             //     XSTART = 0
+      0x00, 0x7F+0x03 },           //     XEND = 127
+
   Rcmd3[] = {                 // Init for 7735R, part 3 (red or green tab)
     4,                        //  4 commands in list:
     ST7735_GMCTRP1, 16      , //  1: Magical unicorn dust, 16 args, no delay:
@@ -531,7 +542,7 @@ void ST7735_t3::commandList(const uint8_t *addr)
 
 
 // Initialization code common to both 'B' and 'R' type displays
-void ST7735_t3::commonInit(const uint8_t *cmdList)
+void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 {
 	_colstart  = _rowstart = 0; // May be overridden in init func
   	_ystart = _xstart = 0;
@@ -615,7 +626,8 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 		hwSPI = true;
 		_pspi->begin();
 		_pending_rx_count = 0;
-		_pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0)); // 4 MHz (half speed)
+		_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
+		_pspi->beginTransaction(_spiSettings); // 4 MHz (half speed)
 		_pspi->endTransaction();
 		_spi_tcr_current = _pimxrt_spi->TCR; // get the current TCR value 
 			// TODO:  Need to setup DC to actually work.
@@ -733,10 +745,15 @@ void ST7735_t3::initR(uint8_t options)
 		_colstart = 2;
 		_rowstart = 1;
 	} else if(options == INITR_144GREENTAB) {
-		_height = ST7735_TFTHEIGHT_144;
+		_screenHeight = ST7735_TFTHEIGHT_144;
 		commandList(Rcmd2green144);
 		_colstart = 0;
 		_rowstart = 32;
+	} else if(options == INITR_144GREENTAB_OFFSET) {
+		_screenHeight = ST7735_TFTHEIGHT_144;
+		commandList(Rcmd2green144_offset);
+		_colstart = 2;
+		_rowstart = 3;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
@@ -862,11 +879,7 @@ void ST7735_t3::setRotation(uint8_t m)
 			writedata(MADCTL_MX | MADCTL_MY | MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
-		if (tabcolor == INITR_144GREENTAB) {
-			_height = ST7735_TFTHEIGHT_144;
-		} else {
-			_height = ST7735_TFTHEIGHT_18;
-		}
+		_height = _screenHeight;
 	    _xstart = _colstart;
 	    _ystart = _rowstart;
 		break;
@@ -876,12 +889,8 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			writedata(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 		}
-		if (tabcolor == INITR_144GREENTAB) {
-			_width = ST7735_TFTHEIGHT_144;
-		} else {
-			_width = ST7735_TFTHEIGHT_18;
-		}
 		_height = ST7735_TFTWIDTH;
+		_width = _screenHeight;
      	_ystart = _colstart;
      	_xstart = _rowstart;
 		break;
@@ -892,13 +901,9 @@ void ST7735_t3::setRotation(uint8_t m)
 			writedata(MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
-		if (tabcolor == INITR_144GREENTAB) {
-			_height = ST7735_TFTHEIGHT_144;
-		} else {
-			_height = ST7735_TFTHEIGHT_18;
-		}
+		_height = _screenHeight;
      	_xstart = _colstart;
-     	_ystart = 0;//_rowstart;
+     	_ystart = 1;//_rowstart;
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -906,17 +911,21 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			writedata(MADCTL_MX | MADCTL_MV | MADCTL_BGR);
 		}
-		if (tabcolor == INITR_144GREENTAB) {
-			_width = ST7735_TFTHEIGHT_144;
-		} else {
-			_width = ST7735_TFTHEIGHT_18;
-		}
+		_width = _screenHeight;
 		_height = ST7735_TFTWIDTH;
      	_ystart = _colstart;
-     	_xstart = 0;//_rowstart;
+     	_xstart = 1;//_rowstart;
 		break;
 	}
+	_rot = rotation;	// remember the rotation... 
+	Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
 	endSPITransaction();
+}
+
+void ST7735_t3::setRowColStart(uint8_t x, uint8_t y) {
+	_rowstart = x;
+	_colstart = y;
+	if (_rot != 0xff) setRotation(_rot);
 }
 
 

@@ -61,9 +61,12 @@ void  ST7789_t3::setRotation(uint8_t m)
      _ystart = _colstart;
      break;
   }
+
+  _rot = m;  
   endSPITransaction();
 //  Serial.printf("Set rotation %d start(%d %d) row: %d, col: %d\n", m, _xstart, _ystart, _rowstart, _colstart);
 }
+
 #define ST7789_240x240_XSTART 0
 #define ST7789_240x240_YSTART 80
 
@@ -95,9 +98,9 @@ static const uint8_t PROGMEM
     255 };                  //     255 = 500 ms delay
 
 
-void  ST7789_t3::init(uint16_t width, uint16_t height)
+void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
 {
-	commonInit(NULL);
+	commonInit(NULL, mode);
 
 	_colstart = ST7789_240x240_XSTART;
 	_rowstart = ST7789_240x240_YSTART;
