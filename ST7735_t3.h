@@ -99,6 +99,18 @@
 #define ST7735_YELLOW  0xFFE0
 #define ST7735_WHITE   0xFFFF
 
+// Also define them in a non specific ST77XX specific name
+#define ST77XX_BLACK      0x0000
+#define ST77XX_WHITE      0xFFFF
+#define ST77XX_RED        0xF800
+#define ST77XX_GREEN      0x07E0
+#define ST77XX_BLUE       0x001F
+#define ST77XX_CYAN       0x07FF
+#define ST77XX_MAGENTA    0xF81F
+#define ST77XX_YELLOW     0xFFE0
+#define ST77XX_ORANGE     0xFC00
+
+
 
 class ST7735_t3 : public Adafruit_GFX {
 
@@ -131,6 +143,9 @@ class ST7735_t3 : public Adafruit_GFX {
         writedata16(y0+_ystart);   // YSTART
         writedata16(y1+_ystart);   // YEND
   }
+
+  void sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
+
 
   // Pass 8-bit (each) R,G,B, get back 16-bit packed color
   inline uint16_t Color565(uint8_t r, uint8_t g, uint8_t b) {

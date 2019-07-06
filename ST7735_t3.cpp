@@ -921,7 +921,7 @@ void ST7735_t3::setRotation(uint8_t m)
 		break;
 	}
 	_rot = rotation;	// remember the rotation... 
-	Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
+	//Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
 	endSPITransaction();
 }
 
@@ -938,4 +938,22 @@ void ST7735_t3::invertDisplay(boolean i)
 	writecommand_last(i ? ST7735_INVON : ST7735_INVOFF);
 	endSPITransaction();
 
+}
+
+/*!
+ @brief   Adafruit_SPITFT Send Command handles complete sending of commands and const data
+ @param   commandByte       The Command Byte
+ @param   dataBytes         A pointer to the Data bytes to send
+ @param   numDataBytes      The number of bytes we should send
+ */
+void ST7735_t3::sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes) {
+    beginSPITransaction();
+
+    writecommand_last(commandByte); // Send the command byte
+  
+    for (int i=0; i<numDataBytes; i++) {
+	  writedata(*dataBytes); // Send the data bytes
+    }
+  
+    endSPITransaction();
 }
