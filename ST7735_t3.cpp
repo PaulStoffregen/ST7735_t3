@@ -751,7 +751,8 @@ void ST7735_t3::initR(uint8_t options)
 		_rowstart = 32;
 	} else if(options == INITR_144GREENTAB_OFFSET) {
 		_screenHeight = ST7735_TFTHEIGHT_144;
-		commandList(Rcmd2green144_offset);
+		//commandList(Rcmd2green144_offset);
+		commandList(Rcmd2green144);
 		_colstart = 2;
 		_rowstart = 3;
 	} else {
@@ -903,7 +904,8 @@ void ST7735_t3::setRotation(uint8_t m)
 		_width  = ST7735_TFTWIDTH;
 		_height = _screenHeight;
      	_xstart = _colstart;
-     	_ystart = 1;//_rowstart;
+     	// hack to make work on a couple different displays
+     	_ystart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -914,7 +916,8 @@ void ST7735_t3::setRotation(uint8_t m)
 		_width = _screenHeight;
 		_height = ST7735_TFTWIDTH;
      	_ystart = _colstart;
-     	_xstart = 1;//_rowstart;
+     	// hack to make work on a couple different displays
+     	_xstart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
 		break;
 	}
 	_rot = rotation;	// remember the rotation... 
