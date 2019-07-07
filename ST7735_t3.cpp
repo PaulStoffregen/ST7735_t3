@@ -33,6 +33,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_sid  = sid;
 	_sclk = sclk;
 	_rst  = rst;
+	_rot = 0xff;
 	hwSPI = false;
 	_screenHeight = ST7735_TFTHEIGHT_18;
 }
@@ -45,6 +46,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 	_cs   = cs;
 	_rs   = rs;
 	_rst  = rst;
+	_rot = 0xff;
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
 	_screenHeight = ST7735_TFTHEIGHT_18;
@@ -482,15 +484,6 @@ static const uint8_t PROGMEM
       0x00, 0x00,             //     XSTART = 0
       0x00, 0x7F },           //     XEND = 127
 
-  Rcmd2green144_offset[] = {         // Init for 7735R, part 2 (green 1.44 tab)
-    2,                        //  2 commands in list:
-    ST7735_CASET  , 4      ,  //  1: Column addr set, 4 args, no delay:
-      0x00, 0x02,             //     XSTART = 0
-      0x00, 0x7F+0x02,             //     XEND = 127
-    ST7735_RASET  , 4      ,  //  2: Row addr set, 4 args, no delay:
-      0x00, 0x03,             //     XSTART = 0
-      0x00, 0x7F+0x03 },           //     XEND = 127
-
   Rcmd3[] = {                 // Init for 7735R, part 3 (red or green tab)
     4,                        //  4 commands in list:
     ST7735_GMCTRP1, 16      , //  1: Magical unicorn dust, 16 args, no delay:
@@ -747,14 +740,13 @@ void ST7735_t3::initR(uint8_t options)
 	} else if(options == INITR_144GREENTAB) {
 		_screenHeight = ST7735_TFTHEIGHT_144;
 		commandList(Rcmd2green144);
-		_colstart = 0;
-		_rowstart = 32;
-	} else if(options == INITR_144GREENTAB_OFFSET) {
-		_screenHeight = ST7735_TFTHEIGHT_144;
-		//commandList(Rcmd2green144_offset);
-		commandList(Rcmd2green144);
 		_colstart = 2;
 		_rowstart = 3;
+	} else if(options == INITR_144GREENTAB_OFFSET) {
+		_screenHeight = ST7735_TFTHEIGHT_144;
+		commandList(Rcmd2green144);
+		_colstart = 0;
+		_rowstart = 32;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);

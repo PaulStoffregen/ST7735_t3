@@ -67,6 +67,10 @@ void setup(void) {
   tft.initR(INITR_BLACKTAB);
   // Use this initializer (uncomment) if you're using a 1.44" TFT
   //tft.initR(INITR_144GREENTAB);
+  // Some 1.44" displays use different memory offsets
+  // (uncomment)if yours is not working properly
+  // May need to tweek the offsets
+  //tft.setRowColStart(32,0);
 
   // Use this initializer (uncomment) if you're using a 1.54" 240x240 TFT
   //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
