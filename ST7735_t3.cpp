@@ -17,6 +17,7 @@
  ****************************************************/
 
 #include "ST7735_t3.h"
+#include "ST7789_t3.h"
 #include <limits.h>
 #include "pins_arduino.h"
 #include "wiring_private.h"
@@ -32,7 +33,9 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_sid  = sid;
 	_sclk = sclk;
 	_rst  = rst;
+	_rot = 0xff;
 	hwSPI = false;
+	_screenHeight = ST7735_TFTHEIGHT_18;
 }
 
 
@@ -43,140 +46,37 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 	_cs   = cs;
 	_rs   = rs;
 	_rst  = rst;
+	_rot = 0xff;
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
+	_screenHeight = ST7735_TFTHEIGHT_18;
 }
 
-
-/***************************************************************/
-/*     Arduino Uno, Leonardo, Mega, Teensy 2.0, etc            */
-/***************************************************************/
-#if defined(__AVR__ )
-inline void ST7735_t3::writebegin()
-{
-}
-
-inline void ST7735_t3::spiwrite(uint8_t c)
-{
-	if (hwSPI) {
-		SPDR = c;
-		while(!(SPSR & _BV(SPIF)));
-	} else {
-		// Fast SPI bitbang swiped from LPD8806 library
-		for(uint8_t bit = 0x80; bit; bit >>= 1) {
-			if(c & bit) *dataport |=  datapinmask;
-			else        *dataport &= ~datapinmask;
-			*clkport |=  clkpinmask;
-			*clkport &= ~clkpinmask;
-		}
-	}
-}
-
-void ST7735_t3::writecommand(uint8_t c)
-{
-	*rsport &= ~rspinmask;
-	*csport &= ~cspinmask;
-	spiwrite(c);
-	*csport |= cspinmask;
-}
-
-void ST7735_t3::writedata(uint8_t c)
-{
-	*rsport |=  rspinmask;
-	*csport &= ~cspinmask;
-	spiwrite(c);
-	*csport |= cspinmask;
-} 
-
-void ST7735_t3::writedata16(uint16_t d)
-{
-	*rsport |=  rspinmask;
-	*csport &= ~cspinmask;
-	spiwrite(d >> 8);
-	spiwrite(d);
-	*csport |= cspinmask;
-} 
-
-void ST7735_t3::setBitrate(uint32_t n)
-{
-	if (n >= 8000000) {
-		SPI.setClockDivider(SPI_CLOCK_DIV2);
-	} else if (n >= 4000000) {
-		SPI.setClockDivider(SPI_CLOCK_DIV4);
-	} else if (n >= 2000000) {
-		SPI.setClockDivider(SPI_CLOCK_DIV8);
-	} else {
-		SPI.setClockDivider(SPI_CLOCK_DIV16);
-	}
-}
-
-/***************************************************************/
-/*     Arduino Due                                             */
-/***************************************************************/
-#elif defined(__SAM3X8E__)
-inline void ST7735_t3::writebegin()
-{
-}
-
-inline void ST7735_t3::spiwrite(uint8_t c)
-{
-	//Serial.println(c, HEX);
-	if (hwSPI) {
-		SPI.transfer(c);
-	} else {
-		// Fast SPI bitbang swiped from LPD8806 library
-		for(uint8_t bit = 0x80; bit; bit >>= 1) {
-			if(c & bit) dataport->PIO_SODR |= datapinmask;
-			else        dataport->PIO_CODR |= datapinmask;
-			clkport->PIO_SODR |= clkpinmask;
-			clkport->PIO_CODR |= clkpinmask;
-		}
-	}
-}
-
-void ST7735_t3::writecommand(uint8_t c)
-{
-	rsport->PIO_CODR |=  rspinmask;
-	csport->PIO_CODR  |=  cspinmask;
-	spiwrite(c);
-	csport->PIO_SODR  |=  cspinmask;
-}
-
-void ST7735_t3::writedata(uint8_t c)
-{
-	rsport->PIO_SODR |=  rspinmask;
-	csport->PIO_CODR  |=  cspinmask;
-	spiwrite(c);
-	csport->PIO_SODR  |=  cspinmask;
-} 
-
-void ST7735_t3::writedata16(uint16_t d)
-{
-	rsport->PIO_SODR |=  rspinmask;
-	csport->PIO_CODR  |=  cspinmask;
-	spiwrite(d >> 8);
-	spiwrite(d);
-	csport->PIO_SODR  |=  cspinmask;
-}
-
-void ST7735_t3::setBitrate(uint32_t n)
-{
-	uint32_t divider=1;
-	while (divider < 255) {
-		if (n >= 84000000 / divider) break;
-		divider = divider - 1;
-	}
-	SPI.setClockDivider(divider);
-}
 
 
 /***************************************************************/
 /*     Teensy 3.0, 3.1, 3.2, 3.5, 3.6                          */
 /***************************************************************/
-#elif defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
+#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 
-inline void ST7735_t3::writebegin()
-{
+inline void ST7735_t3::waitTransmitComplete(void)  {
+    uint32_t tmp __attribute__((unused));
+    while (!(_pkinetisk_spi->SR & SPI_SR_TCF)) ; // wait until final output done
+    tmp = _pkinetisk_spi->POPR;                  // drain the final RX FIFO word
+}
+
+inline void ST7735_t3::waitTransmitComplete(uint32_t mcr) {
+    uint32_t tmp __attribute__((unused));
+    while (1) {
+        uint32_t sr = _pkinetisk_spi->SR;
+        if (sr & SPI_SR_EOQF) break;  // wait for last transmit
+        if (sr &  0xF0) tmp = _pkinetisk_spi->POPR;
+    }
+    _pkinetisk_spi->SR = SPI_SR_EOQF;
+    _pkinetisk_spi->MCR = mcr;
+    while (_pkinetisk_spi->SR & 0xF0) {
+        tmp = _pkinetisk_spi->POPR;
+    }
 }
 
 inline void ST7735_t3::spiwrite(uint8_t c)
@@ -191,8 +91,8 @@ inline void ST7735_t3::spiwrite(uint8_t c)
 void ST7735_t3::writecommand(uint8_t c)
 {
 	if (hwSPI) {
-		KINETISK_SPI0.PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0);
-		while (((KINETISK_SPI0.SR) & (15 << 12)) > (3 << 12)) ; // wait if FIFO full
+		_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0);
+		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 0;
 		*cspin = 0;
@@ -201,11 +101,17 @@ void ST7735_t3::writecommand(uint8_t c)
 	}
 }
 
+void ST7735_t3::writecommand_last(uint8_t c) {
+	uint32_t mcr = _pkinetisk_spi->MCR;
+	_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
+	waitTransmitComplete(mcr);
+}
+
 void ST7735_t3::writedata(uint8_t c)
 {
 	if (hwSPI) {
-		KINETISK_SPI0.PUSHR = c | (pcs_data << 16) | SPI_PUSHR_CTAS(0);
-		while (((KINETISK_SPI0.SR) & (15 << 12)) > (3 << 12)) ; // wait if FIFO full
+		_pkinetisk_spi->PUSHR = c | (pcs_data << 16) | SPI_PUSHR_CTAS(0);
+		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
 		*cspin = 0;
@@ -217,8 +123,8 @@ void ST7735_t3::writedata(uint8_t c)
 void ST7735_t3::writedata16(uint16_t d)
 {
 	if (hwSPI) {
-		KINETISK_SPI0.PUSHR = d | (pcs_data << 16) | SPI_PUSHR_CTAS(1);
-		while (((KINETISK_SPI0.SR) & (15 << 12)) > (3 << 12)) ; // wait if FIFO full
+		_pkinetisk_spi->PUSHR = d | (pcs_data << 16) | SPI_PUSHR_CTAS(1);
+		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
 		*cspin = 0;
@@ -228,29 +134,21 @@ void ST7735_t3::writedata16(uint16_t d)
 	}
 }
 
-static bool spi_pin_is_cs(uint8_t pin)
+
+
+void ST7735_t3::writedata16_last(uint16_t d)
 {
-	if (pin == 2 || pin == 6 || pin == 9) return true;
-	if (pin == 10 || pin == 15) return true;
-	if (pin >= 20 && pin <= 23) return true;
-	return false;
+	if (hwSPI) {
+		uint32_t mcr = _pkinetisk_spi->MCR;
+		_pkinetisk_spi->PUSHR = d | (pcs_data << 16) | SPI_PUSHR_CTAS(1) | SPI_PUSHR_EOQ;
+		waitTransmitComplete(mcr);
+	} else {
+		*rspin = 1;
+		spiwrite(d >> 8);
+		spiwrite(d);
+	}
 }
 
-static uint8_t spi_configure_cs_pin(uint8_t pin)
-{
-        switch (pin) {
-                case 10: CORE_PIN10_CONFIG = PORT_PCR_MUX(2); return 0x01; // PTC4
-                case 2:  CORE_PIN2_CONFIG  = PORT_PCR_MUX(2); return 0x01; // PTD0
-                case 9:  CORE_PIN9_CONFIG  = PORT_PCR_MUX(2); return 0x02; // PTC3
-                case 6:  CORE_PIN6_CONFIG  = PORT_PCR_MUX(2); return 0x02; // PTD4
-                case 20: CORE_PIN20_CONFIG = PORT_PCR_MUX(2); return 0x04; // PTD5
-                case 23: CORE_PIN23_CONFIG = PORT_PCR_MUX(2); return 0x04; // PTC2
-                case 21: CORE_PIN21_CONFIG = PORT_PCR_MUX(2); return 0x08; // PTD6
-                case 22: CORE_PIN22_CONFIG = PORT_PCR_MUX(2); return 0x08; // PTC1
-                case 15: CORE_PIN15_CONFIG = PORT_PCR_MUX(2); return 0x10; // PTC0
-        }
-        return 0;
-}
 
 #define CTAR_24MHz   (SPI_CTAR_PBR(0) | SPI_CTAR_BR(0) | SPI_CTAR_CSSCK(0) | SPI_CTAR_DBR)
 #define CTAR_16MHz   (SPI_CTAR_PBR(1) | SPI_CTAR_BR(0) | SPI_CTAR_CSSCK(0) | SPI_CTAR_DBR)
@@ -275,19 +173,123 @@ void ST7735_t3::setBitrate(uint32_t n)
 		ctar = CTAR_4MHz;
 	}
 	SIM_SCGC6 |= SIM_SCGC6_SPI0;
-	KINETISK_SPI0.MCR = SPI_MCR_MDIS | SPI_MCR_HALT;
-	KINETISK_SPI0.CTAR0 = ctar | SPI_CTAR_FMSZ(7);
-	KINETISK_SPI0.CTAR1 = ctar | SPI_CTAR_FMSZ(15);
-	KINETISK_SPI0.MCR = SPI_MCR_MSTR | SPI_MCR_PCSIS(0x1F) | SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF;
+	_pkinetisk_spi->MCR = SPI_MCR_MDIS | SPI_MCR_HALT;
+	_pkinetisk_spi->CTAR0 = ctar | SPI_CTAR_FMSZ(7);
+	_pkinetisk_spi->CTAR1 = ctar | SPI_CTAR_FMSZ(15);
+	_pkinetisk_spi->MCR = SPI_MCR_MSTR | SPI_MCR_PCSIS(0x1F) | SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF;
 }
+
+
+/***************************************************************/
+/*     Teensy 4.                                               */
+/***************************************************************/
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+inline void ST7735_t3::spiwrite(uint8_t c)
+{
+//Serial.println(c, HEX);
+	if (_pspi) {
+		_pspi->transfer(c);
+	} else {
+		// Fast SPI bitbang swiped from LPD8806 library
+		for(uint8_t bit = 0x80; bit; bit >>= 1) {
+			if(c & bit) DIRECT_WRITE_HIGH(_mosiport, _mosipinmask);
+			else        DIRECT_WRITE_LOW(_mosiport, _mosipinmask);
+			DIRECT_WRITE_HIGH(_sckport, _sckpinmask);
+			asm("nop; nop; nop; nop; nop; nop; nop; nop; nop; nop; nop;");
+			DIRECT_WRITE_LOW(_sckport, _sckpinmask);
+		}
+	}
+}
+
+void ST7735_t3::writecommand(uint8_t c)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7) /*| LPSPI_TCR_CONT*/);
+		_pimxrt_spi->TDR = c;
+		_pending_rx_count++;	//
+		waitFifoNotFull();
+	} else {
+		DIRECT_WRITE_LOW(_dcport, _dcpinmask);
+		spiwrite(c);
+	}
+}
+
+void ST7735_t3::writecommand_last(uint8_t c)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));
+		_pimxrt_spi->TDR = c;
+		_pending_rx_count++;	//
+		waitTransmitComplete();
+	} else {
+		DIRECT_WRITE_LOW(_dcport, _dcpinmask);
+		spiwrite(c);
+	}
+
+}
+
+void ST7735_t3::writedata(uint8_t c)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+		_pimxrt_spi->TDR = c;
+		_pending_rx_count++;	//
+		waitTransmitComplete();
+	} else {
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+		spiwrite(c);
+	}
+} 
+
+
+void ST7735_t3::writedata16(uint16_t d)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
+		_pimxrt_spi->TDR = d;
+		_pending_rx_count++;	//
+		waitFifoNotFull();
+	} else {
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+		spiwrite(d >> 8);
+		spiwrite(d);
+	}
+} 
+
+void ST7735_t3::writedata16_last(uint16_t d)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15));
+		_pimxrt_spi->TDR = d;
+//		_pimxrt_spi->SR = LPSPI_SR_WCF | LPSPI_SR_FCF | LPSPI_SR_TCF;
+		_pending_rx_count++;	//
+		waitTransmitComplete();
+	} else {
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+		spiwrite(d >> 8);
+		spiwrite(d);
+	}
+} 
+
+void ST7735_t3::setBitrate(uint32_t n)
+{
+	if (n >= 8000000) {
+		SPI.setClockDivider(SPI_CLOCK_DIV2);
+	} else if (n >= 4000000) {
+		SPI.setClockDivider(SPI_CLOCK_DIV4);
+	} else if (n >= 2000000) {
+		SPI.setClockDivider(SPI_CLOCK_DIV8);
+	} else {
+		SPI.setClockDivider(SPI_CLOCK_DIV16);
+	}
+}
+
 
 /***************************************************************/
 /*     Teensy LC                                               */
 /***************************************************************/
 #elif defined(__MKL26Z64__)
-inline void ST7735_t3::writebegin()
-{
-}
+
 
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
@@ -310,26 +312,32 @@ inline void ST7735_t3::spiwrite(uint8_t c)
 void ST7735_t3::writecommand(uint8_t c)
 {
 	*rsport &= ~rspinmask;
-	*csport &= ~cspinmask;
 	spiwrite(c);
-	*csport |= cspinmask;
+}
+void ST7735_t3::writecommand_last(uint8_t c)
+{
+	*rsport &= ~rspinmask;
+	spiwrite(c);
 }
 
 void ST7735_t3::writedata(uint8_t c)
 {
 	*rsport |=  rspinmask;
-	*csport &= ~cspinmask;
 	spiwrite(c);
-	*csport |= cspinmask;
 } 
 
 void ST7735_t3::writedata16(uint16_t d)
 {
 	*rsport |=  rspinmask;
-	*csport &= ~cspinmask;
 	spiwrite(d >> 8);
 	spiwrite(d);
-	*csport |= cspinmask;
+} 
+
+void ST7735_t3::writedata16_last(uint16_t d)
+{
+	*rsport |=  rspinmask;
+	spiwrite(d >> 8);
+	spiwrite(d);
 } 
 
 void ST7735_t3::setBitrate(uint32_t n)
@@ -501,10 +509,11 @@ void ST7735_t3::commandList(const uint8_t *addr)
 	uint8_t  numCommands, numArgs;
 	uint16_t ms;
 
-	writebegin();
+	beginSPITransaction();
 	numCommands = pgm_read_byte(addr++);		// Number of commands to follow
+	//Serial.printf("CommandList: numCmds:%d\n", numCommands); Serial.flush();
 	while(numCommands--) {				// For each command...
-		writecommand(pgm_read_byte(addr++));	//   Read, issue command
+		writecommand_last(pgm_read_byte(addr++));	//   Read, issue command
 		numArgs  = pgm_read_byte(addr++);	//   Number of args to follow
 		ms       = numArgs & DELAY;		//   If hibit set, delay follows args
 		numArgs &= ~DELAY;			//   Mask out delay bit
@@ -515,105 +524,66 @@ void ST7735_t3::commandList(const uint8_t *addr)
 		if(ms) {
 			ms = pgm_read_byte(addr++);	// Read post-command delay time (ms)
 			if(ms == 255) ms = 500;		// If 255, delay for 500 ms
+			//Serial.printf("delay %d\n", ms); Serial.flush();
+			endSPITransaction();
 			delay(ms);
+			beginSPITransaction();
 		}
 	}
+	endSPITransaction();
 }
 
 
 // Initialization code common to both 'B' and 'R' type displays
-void ST7735_t3::commonInit(const uint8_t *cmdList)
+void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 {
-	colstart  = rowstart = 0; // May be overridden in init func
+	_colstart  = _rowstart = 0; // May be overridden in init func
+  	_ystart = _xstart = 0;
 
-#ifdef __AVR__
-	pinMode(_rs, OUTPUT);
-	pinMode(_cs, OUTPUT);
-	csport    = portOutputRegister(digitalPinToPort(_cs));
-	rsport    = portOutputRegister(digitalPinToPort(_rs));
-	cspinmask = digitalPinToBitMask(_cs);
-	rspinmask = digitalPinToBitMask(_rs);
-
-	if(hwSPI) { // Using hardware SPI
-		SPI.begin();
-		SPI.setClockDivider(SPI_CLOCK_DIV4); // 4 MHz (half speed)
-		SPI.setBitOrder(MSBFIRST);
-		SPI.setDataMode(SPI_MODE0);
-	} else {
-		pinMode(_sclk, OUTPUT);
-		pinMode(_sid , OUTPUT);
-		clkport     = portOutputRegister(digitalPinToPort(_sclk));
-		dataport    = portOutputRegister(digitalPinToPort(_sid));
-		clkpinmask  = digitalPinToBitMask(_sclk);
-		datapinmask = digitalPinToBitMask(_sid);
-		*clkport   &= ~clkpinmask;
-		*dataport  &= ~datapinmask;
-	}
-	// toggle RST low to reset; CS low so it'll listen to us
-	*csport &= ~cspinmask;
-
-
-#elif defined(__SAM3X8E__)
-	pinMode(_rs, OUTPUT);
-	pinMode(_cs, OUTPUT);
-	csport    = digitalPinToPort(_cs);
-	rsport    = digitalPinToPort(_rs);
-	cspinmask = digitalPinToBitMask(_cs);
-	rspinmask = digitalPinToBitMask(_rs);
-
-	if(hwSPI) { // Using hardware SPI
-		SPI.begin();
-		SPI.setClockDivider(21); // 4 MHz
-		//Due defaults to 4mHz (clock divider setting of 21), but we'll set it anyway 
-		SPI.setBitOrder(MSBFIRST);
-		SPI.setDataMode(SPI_MODE0);
-	} else {
-		pinMode(_sclk, OUTPUT);
-		pinMode(_sid , OUTPUT);
-		clkport     = digitalPinToPort(_sclk);
-		dataport    = digitalPinToPort(_sid);
-		clkpinmask  = digitalPinToBitMask(_sclk);
-		datapinmask = digitalPinToBitMask(_sid);
-		clkport ->PIO_CODR  |=  clkpinmask; // Set control bits to LOW (idle)
-		dataport->PIO_CODR  |=  datapinmask; // Signals are ACTIVE HIGH
-	}
-	// toggle RST low to reset; CS low so it'll listen to us
-	csport ->PIO_CODR  |=  cspinmask; // Set control bits to LOW (idle)
-
-
-#elif defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
+#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 	if (_sid == (uint8_t)-1) _sid = 11;
 	if (_sclk == (uint8_t)-1) _sclk = 13;
-	if ( spi_pin_is_cs(_cs) && spi_pin_is_cs(_rs)
-	 && (_sid == 7 || _sid == 11)
-	 && (_sclk == 13 || _sclk == 14)
-	 && !(_cs ==  2 && _rs == 10) && !(_rs ==  2 && _cs == 10)
-	 && !(_cs ==  6 && _rs ==  9) && !(_rs ==  6 && _cs ==  9)
-	 && !(_cs == 20 && _rs == 23) && !(_rs == 20 && _cs == 23)
-	 && !(_cs == 21 && _rs == 22) && !(_rs == 21 && _cs == 22) ) {
+
+	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
+		_pspi = &SPI;
+		_pkinetisk_spi = &KINETISK_SPI0;  // Could hack our way to grab this from SPI object, but...
+		_fifo_full_test = (3 << 12);
+		//Serial.println("ST7735_t3::commonInit SPI");
+
+    #if  defined(__MK64FX512__) || defined(__MK66FX1M0__)
+	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk) && SPI1.pinIsChipSelect(_rs)) {
+		_pspi = &SPI1;
+		_pkinetisk_spi = &KINETISK_SPI1;
+		_fifo_full_test = (0 << 12);
+		//Serial.println("ST7735_t3::commonInit SPI1");
+	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk) && SPI2.pinIsChipSelect(_rs)) {
+		_pspi = &SPI2;
+		_pkinetisk_spi = &KINETISK_SPI2;
+		_fifo_full_test = (0 << 12);
+		//Serial.println("ST7735_t3::commonInit SPI2");
+    #endif		
+	} else _pspi = nullptr;
+
+	if (_pspi) {
 		hwSPI = true;
-		if (_sclk == 13) {
-			CORE_PIN13_CONFIG = PORT_PCR_MUX(2) | PORT_PCR_DSE;
-			SPCR.setSCK(13);
+		_pspi->setMOSI(_sid);
+		_pspi->setSCK(_sclk);
+		_pspi->begin();
+		//Serial.println("After SPI begin");
+		// See if both CS and DC are valid CS pins.
+		if (_pspi->pinIsChipSelect(_rs, _cs)) {
+			pcs_data = _pspi->setCS(_cs);
+			pcs_command = pcs_data | _pspi->setCS(_rs);
+			cspin = 0; // Let know that we are not setting manual
+			//Serial.println("Both CS and DC are SPI pins");
 		} else {
-			CORE_PIN14_CONFIG = PORT_PCR_MUX(2);
-			SPCR.setSCK(14);
+			// We already verified that _rs was valid CS pin above.
+			pcs_data = 0;
+			pcs_command = pcs_data | _pspi->setCS(_rs);
+			pinMode(_cs, OUTPUT);
+			cspin = portOutputRegister(digitalPinToPort(_cs));
+			*cspin = 1;
 		}
-		if (_sid == 11) {
-			CORE_PIN11_CONFIG = PORT_PCR_MUX(2);
-			SPCR.setMOSI(11);
-		} else {
-			CORE_PIN7_CONFIG = PORT_PCR_MUX(2);
-			SPCR.setMOSI(7);
-		}
-		ctar = CTAR_12MHz;
-		pcs_data = spi_configure_cs_pin(_cs);
-		pcs_command = pcs_data | spi_configure_cs_pin(_rs);
-		SIM_SCGC6 |= SIM_SCGC6_SPI0;
-		KINETISK_SPI0.MCR = SPI_MCR_MDIS | SPI_MCR_HALT;
-		KINETISK_SPI0.CTAR0 = ctar | SPI_CTAR_FMSZ(7);
-		KINETISK_SPI0.CTAR1 = ctar | SPI_CTAR_FMSZ(15);
-		KINETISK_SPI0.MCR = SPI_MCR_MSTR | SPI_MCR_PCSIS(0x1F) | SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF;
 	} else {
 		hwSPI = false;
 		cspin = portOutputRegister(digitalPinToPort(_cs));
@@ -629,6 +599,62 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 		pinMode(_sclk, OUTPUT);
 		pinMode(_sid, OUTPUT);
 	}
+	// Teensy 4
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x 
+	if (_sid == (uint8_t)-1) _sid = 11;
+	if (_sclk == (uint8_t)-1) _sclk = 13;
+	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk)) {
+		_pspi = &SPI;
+		_pimxrt_spi = &IMXRT_LPSPI4_S;  // Could hack our way to grab this from SPI object, but...
+
+	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk)) {
+		_pspi = &SPI1;
+		_pimxrt_spi = &IMXRT_LPSPI3_S;
+	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk)) {
+		_pspi = &SPI2;
+		_pimxrt_spi = &IMXRT_LPSPI1_S;
+	} else _pspi = nullptr;
+
+	if (_pspi) {
+		hwSPI = true;
+		_pspi->begin();
+		_pending_rx_count = 0;
+		_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
+		_pspi->beginTransaction(_spiSettings); // 4 MHz (half speed)
+		_pspi->endTransaction();
+		_spi_tcr_current = _pimxrt_spi->TCR; // get the current TCR value 
+			// TODO:  Need to setup DC to actually work.
+	
+	} else {
+		hwSPI = false;
+		_sckport = portOutputRegister(_sclk);
+		_sckpinmask = digitalPinToBitMask(_sclk);
+		pinMode(_sclk, OUTPUT);	
+		DIRECT_WRITE_LOW(_sckport, _sckpinmask);
+
+		_mosiport = portOutputRegister(_sid);
+		_mosipinmask = digitalPinToBitMask(_sid);
+		pinMode(_sid, OUTPUT);	
+		DIRECT_WRITE_LOW(_mosiport, _mosipinmask);
+
+	}
+	_csport = portOutputRegister(_cs);
+	_cspinmask = digitalPinToBitMask(_cs);
+	pinMode(_cs, OUTPUT);	
+	DIRECT_WRITE_HIGH(_csport, _cspinmask);
+	if (_pspi && _pspi->pinIsChipSelect(_rs)) {
+	 	_pspi->setCS(_rs);
+	 	_dcport = 0;
+	 	_dcpinmask = 0;
+	} else {
+		//Serial.println("ILI9341_t3n: Error not DC is not valid hardware CS pin");
+		_dcport = portOutputRegister(_rs);
+		_dcpinmask = digitalPinToBitMask(_rs);
+		pinMode(_rs, OUTPUT);	
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+	}
+	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+
     // Teensy LC
 #elif defined(__MKL26Z64__)
 	hwSPI1 = false;
@@ -680,15 +706,16 @@ void ST7735_t3::commonInit(const uint8_t *cmdList)
 	*csport &= ~cspinmask;
 
 #endif
-
+	// BUGBUG
+//	digitalWrite(_cs, LOW);
 	if (_rst) {
 		pinMode(_rst, OUTPUT);
 		digitalWrite(_rst, HIGH);
-		delay(5);
+		delay(500);
 		digitalWrite(_rst, LOW);
-		delay(100);
+		delay(500);
 		digitalWrite(_rst, HIGH);
-		delay(5);
+		delay(500);
 	}
 
 	if(cmdList) commandList(cmdList);
@@ -708,15 +735,20 @@ void ST7735_t3::initR(uint8_t options)
 	commonInit(Rcmd1);
 	if (options == INITR_GREENTAB) {
 		commandList(Rcmd2green);
-		colstart = 2;
-		rowstart = 1;
+		_colstart = 2;
+		_rowstart = 1;
 	} else if(options == INITR_144GREENTAB) {
-		_height = ST7735_TFTHEIGHT_144;
+		_screenHeight = ST7735_TFTHEIGHT_144;
 		commandList(Rcmd2green144);
-		colstart = 2;
-		rowstart = 3;
+		_colstart = 2;
+		_rowstart = 3;
+	} else if(options == INITR_144GREENTAB_OFFSET) {
+		_screenHeight = ST7735_TFTHEIGHT_144;
+		commandList(Rcmd2green144);
+		_colstart = 0;
+		_rowstart = 32;
 	} else {
-		// colstart, rowstart left at default '0' values
+		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
 	}
 	commandList(Rcmd3);
@@ -728,32 +760,34 @@ void ST7735_t3::initR(uint8_t options)
 	}
 
 	tabcolor = options;
+	setRotation(0);
 }
 
 
 void ST7735_t3::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
 {
-	writecommand(ST7735_CASET); // Column addr set
-	writedata16(x0+colstart);   // XSTART 
-	writedata16(x1+colstart);   // XEND
-	writecommand(ST7735_RASET); // Row addr set
-	writedata16(y0+rowstart);   // YSTART
-	writedata16(y1+rowstart);   // YEND
+	beginSPITransaction();
+	setAddr(x0, y0, x1, y1);
 	writecommand(ST7735_RAMWR); // write to RAM
+	endSPITransaction();
 }
 
 
 void ST7735_t3::pushColor(uint16_t color)
 {
-	writebegin();
-	writedata16(color);
+	beginSPITransaction();
+	writedata16_last(color);
+	endSPITransaction();
 }
 
 void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
 	if ((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
-	setAddrWindow(x,y,x+1,y+1);
-	writedata16(color);
+	beginSPITransaction();
+	setAddr(x,y,x+1,y+1);
+	writecommand(ST7735_RAMWR);
+	writedata16_last(color);
+	endSPITransaction();
 }
 
 
@@ -762,10 +796,14 @@ void ST7735_t3::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
 	if ((y+h-1) >= _height) h = _height-y;
-	setAddrWindow(x, y, x, y+h-1);
-	while (h--) {
+	beginSPITransaction();
+	setAddr(x, y, x, y+h-1);
+	writecommand(ST7735_RAMWR);
+	while (h-- > 1) {
 		writedata16(color);
 	}
+	writedata16_last(color);
+	endSPITransaction();
 }
 
 
@@ -774,10 +812,14 @@ void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
 	if ((x+w-1) >= _width)  w = _width-x;
-	setAddrWindow(x, y, x+w-1, y);
-	while (w--) {
+	beginSPITransaction();
+	setAddr(x, y, x+w-1, y);
+	writecommand(ST7735_RAMWR);
+	while (w-- > 1) {
 		writedata16(color);
 	}
+	writedata16_last(color);
+	endSPITransaction();
 }
 
 
@@ -796,12 +838,16 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 	if ((x >= _width) || (y >= _height)) return;
 	if ((x + w - 1) >= _width)  w = _width  - x;
 	if ((y + h - 1) >= _height) h = _height - y;
-	setAddrWindow(x, y, x+w-1, y+h-1);
+	beginSPITransaction();
+	setAddr(x, y, x+w-1, y+h-1);
+	writecommand(ST7735_RAMWR);
 	for (y=h; y>0; y--) {
-		for(x=w; x>0; x--) {
+		for(x=w; x>1; x--) {
 			writedata16(color);
 		}
+		writedata16_last(color);
 	}
+	endSPITransaction();
 }
 
 
@@ -815,6 +861,7 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 
 void ST7735_t3::setRotation(uint8_t m)
 {
+	beginSPITransaction();
 	writecommand(ST7735_MADCTL);
 	rotation = m % 4; // can't be higher than 3
 	switch (rotation) {
@@ -825,11 +872,9 @@ void ST7735_t3::setRotation(uint8_t m)
 			writedata(MADCTL_MX | MADCTL_MY | MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
-		if (tabcolor == INITR_144GREENTAB) {
-			_height = ST7735_TFTHEIGHT_144;
-		} else {
-			_height = ST7735_TFTHEIGHT_18;
-		}
+		_height = _screenHeight;
+	    _xstart = _colstart;
+	    _ystart = _rowstart;
 		break;
 	case 1:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -837,12 +882,10 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			writedata(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 		}
-		if (tabcolor == INITR_144GREENTAB) {
-			_width = ST7735_TFTHEIGHT_144;
-		} else {
-			_width = ST7735_TFTHEIGHT_18;
-		}
 		_height = ST7735_TFTWIDTH;
+		_width = _screenHeight;
+     	_ystart = _colstart;
+     	_xstart = _rowstart;
 		break;
 	case 2:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -851,11 +894,10 @@ void ST7735_t3::setRotation(uint8_t m)
 			writedata(MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
-		if (tabcolor == INITR_144GREENTAB) {
-			_height = ST7735_TFTHEIGHT_144;
-		} else {
-			_height = ST7735_TFTHEIGHT_18;
-		}
+		_height = _screenHeight;
+     	_xstart = _colstart;
+     	// hack to make work on a couple different displays
+     	_ystart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
@@ -863,19 +905,47 @@ void ST7735_t3::setRotation(uint8_t m)
 		} else {
 			writedata(MADCTL_MX | MADCTL_MV | MADCTL_BGR);
 		}
-		if (tabcolor == INITR_144GREENTAB) {
-			_width = ST7735_TFTHEIGHT_144;
-		} else {
-			_width = ST7735_TFTHEIGHT_18;
-		}
+		_width = _screenHeight;
 		_height = ST7735_TFTWIDTH;
+     	_ystart = _colstart;
+     	// hack to make work on a couple different displays
+     	_xstart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
 		break;
 	}
+	_rot = rotation;	// remember the rotation... 
+	//Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
+	endSPITransaction();
+}
+
+void ST7735_t3::setRowColStart(uint8_t x, uint8_t y) {
+	_rowstart = x;
+	_colstart = y;
+	if (_rot != 0xff) setRotation(_rot);
 }
 
 
 void ST7735_t3::invertDisplay(boolean i)
 {
-	writecommand(i ? ST7735_INVON : ST7735_INVOFF);
+	beginSPITransaction();
+	writecommand_last(i ? ST7735_INVON : ST7735_INVOFF);
+	endSPITransaction();
+
 }
 
+/*!
+ @brief   Adafruit_SPITFT Send Command handles complete sending of commands and const data
+ @param   commandByte       The Command Byte
+ @param   dataBytes         A pointer to the Data bytes to send
+ @param   numDataBytes      The number of bytes we should send
+ */
+void ST7735_t3::sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes) {
+    beginSPITransaction();
+
+    writecommand_last(commandByte); // Send the command byte
+  
+    for (int i=0; i<numDataBytes; i++) {
+	  writedata(*dataBytes); // Send the data bytes
+    }
+  
+    endSPITransaction();
+}

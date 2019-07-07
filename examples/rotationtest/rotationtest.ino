@@ -32,9 +32,12 @@ as well as Adafruit raw 1.8" TFT display
 
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <ST7735_t3.h> // Hardware-specific library
+#include <ST7789_t3.h> // Hardware-specific library
 #include <SPI.h>
 
 ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+// For 1.54" TFT with ST7789
+//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 void setup(void) {
   pinMode(SD_CS, INPUT_PULLUP);  // keep SD CS high when not using SD card
@@ -45,6 +48,13 @@ void setup(void) {
   tft.initR(INITR_BLACKTAB);
   // Use this initializer (uncomment) if you're using a 1.44" TFT
   //tft.initR(INITR_144GREENTAB);
+  // Some 1.44" displays use different memory offsets
+  // (uncomment)if yours is not working properly
+  // May need to tweek the offsets
+  //tft.setRowColStart(32,0);
+  
+  // Use this initializer (uncomment) if you're using a 1.54" 240x240 TFT
+  //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
 
   Serial.println("init");
 
