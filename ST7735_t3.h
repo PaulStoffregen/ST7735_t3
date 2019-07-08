@@ -147,6 +147,7 @@ class ST7735_t3 : public Adafruit_GFX {
   void sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
 
 
+
   // Pass 8-bit (each) R,G,B, get back 16-bit packed color
   inline uint16_t Color565(uint8_t r, uint8_t g, uint8_t b) {
            return ((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3);
@@ -160,6 +161,8 @@ class ST7735_t3 : public Adafruit_GFX {
   uint32_t readcommand32(uint8_t);
   void     dummyclock(void);
   */
+  // Useful methods added from ili9341_t3 
+  void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
 
  protected:
   uint8_t  tabcolor;

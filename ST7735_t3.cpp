@@ -711,11 +711,11 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	if (_rst) {
 		pinMode(_rst, OUTPUT);
 		digitalWrite(_rst, HIGH);
-		delay(500);
+		delay(100);
 		digitalWrite(_rst, LOW);
-		delay(500);
+		delay(100);
 		digitalWrite(_rst, HIGH);
-		delay(500);
+		delay(200);
 	}
 
 	if(cmdList) commandList(cmdList);
@@ -948,4 +948,18 @@ void ST7735_t3::sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8
     }
   
     endSPITransaction();
+}
+
+void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors)
+{
+  beginSPITransaction();
+  setAddr(x, y, x + w - 1, y + h - 1);
+  writecommand(ST7735_RAMWR);
+  for (y = h; y > 0; y--) {
+    for (x = w; x > 1; x--) {
+      writedata16(*pcolors++);
+    }
+    writedata16_last(*pcolors++);
+  }
+  endSPITransaction();
 }
