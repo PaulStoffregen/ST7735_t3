@@ -943,8 +943,8 @@ void ST7735_t3::sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8
 
     writecommand_last(commandByte); // Send the command byte
   
-    for (int i=0; i<numDataBytes; i++) {
-	  writedata(*dataBytes); // Send the data bytes
+    for (uint8_t i=0; i<numDataBytes; i++) {
+	  writedata(*dataBytes++); // Send the data bytes
     }
   
     endSPITransaction();
