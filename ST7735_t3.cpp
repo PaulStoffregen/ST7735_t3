@@ -708,7 +708,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 #endif
 	// BUGBUG
 //	digitalWrite(_cs, LOW);
-	if (_rst) {
+	if (_rst != 0xff) {
 		pinMode(_rst, OUTPUT);
 		digitalWrite(_rst, HIGH);
 		delay(100);
