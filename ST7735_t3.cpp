@@ -23,6 +23,28 @@
 #include "wiring_private.h"
 #include <SPI.h>
 
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+#if defined(__MK66FX1M0__) 
+	// T3.6 use Scatter/gather with chain to do transfer
+DMASetting 	ST7735_t3::_dmasettings[3];
+DMAChannel 	ST7735_t3::_dmatx;
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+//DMASetting 	ST7735_t3::_dmasettings[2];
+//DMAChannel 	ST7735_t3::_dmatx;
+#else
+// T3.5 - had issues scatter/gather so do just use channels/interrupts
+// and update and continue
+DMAChannel  ST7735_t3::_dmatx;
+DMAChannel  ST7735_t3::_dmarx;
+uint16_t 	ST7735_t3::_dma_count_remaining;
+uint16_t	ST7735_t3::_dma_write_size_words;
+volatile short _dma_dummy_rx;
+#endif	
+
+ST7735_t3 *ST7735_t3::_dmaActiveDisplay[3] = {0, 0, 0};
+//volatile uint8_t  	ST7735_t3::_dma_state = 0;  // Use pointer to this as a way to get back to object...
+//volatile uint32_t	ST7735_t3::_dma_frame_count = 0;	// Can return a frame count...
+#endif
 
 // Constructor when using software SPI.  All output pins are configurable.
 ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t rst) :
@@ -35,6 +57,11 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_rst  = rst;
 	_rot = 0xff;
 	hwSPI = false;
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+    _pfbtft = NULL;	
+    _use_fbtft = 0;						// Are we in frame buffer mode?
+	_we_allocated_buffer = NULL;
+    #endif
 	_screenHeight = ST7735_TFTHEIGHT_18;
 }
 
@@ -546,6 +573,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 
 	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
 		_pspi = &SPI;
+		_spi_num = 0;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI0;  // Could hack our way to grab this from SPI object, but...
 		_fifo_full_test = (3 << 12);
 		//Serial.println("ST7735_t3::commonInit SPI");
@@ -553,11 +581,14 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
     #if  defined(__MK64FX512__) || defined(__MK66FX1M0__)
 	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk) && SPI1.pinIsChipSelect(_rs)) {
 		_pspi = &SPI1;
+		_spi_num = 1;          // Which buss is this spi on? 
+
 		_pkinetisk_spi = &KINETISK_SPI1;
 		_fifo_full_test = (0 << 12);
 		//Serial.println("ST7735_t3::commonInit SPI1");
 	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk) && SPI2.pinIsChipSelect(_rs)) {
 		_pspi = &SPI2;
+		_spi_num = 2;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI2;
 		_fifo_full_test = (0 << 12);
 		//Serial.println("ST7735_t3::commonInit SPI2");
@@ -605,13 +636,16 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	if (_sclk == (uint8_t)-1) _sclk = 13;
 	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk)) {
 		_pspi = &SPI;
+		_spi_num = 0;          // Which buss is this spi on? 
 		_pimxrt_spi = &IMXRT_LPSPI4_S;  // Could hack our way to grab this from SPI object, but...
 
 	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk)) {
 		_pspi = &SPI1;
+		_spi_num = 1;          // Which buss is this spi on? 
 		_pimxrt_spi = &IMXRT_LPSPI3_S;
 	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk)) {
 		_pspi = &SPI2;
+		_spi_num = 2;          // Which buss is this spi on? 
 		_pimxrt_spi = &IMXRT_LPSPI1_S;
 	} else _pspi = nullptr;
 
@@ -623,7 +657,10 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		_pspi->beginTransaction(_spiSettings); // 4 MHz (half speed)
 		_pspi->endTransaction();
 		_spi_tcr_current = _pimxrt_spi->TCR; // get the current TCR value 
-			// TODO:  Need to setup DC to actually work.
+	
+		// Hack to get hold of the SPI Hardware information... 
+	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
+		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
 	
 	} else {
 		hwSPI = false;
@@ -647,7 +684,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	 	_dcport = 0;
 	 	_dcpinmask = 0;
 	} else {
-		//Serial.println("ILI9341_t3n: Error not DC is not valid hardware CS pin");
+		//Serial.println("ST7735_t3: Error not DC is not valid hardware CS pin");
 		_dcport = portOutputRegister(_rs);
 		_dcpinmask = digitalPinToBitMask(_rs);
 		pinMode(_rs, OUTPUT);	
@@ -783,11 +820,19 @@ void ST7735_t3::pushColor(uint16_t color)
 void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
 	if ((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
-	beginSPITransaction();
-	setAddr(x,y,x+1,y+1);
-	writecommand(ST7735_RAMWR);
-	writedata16_last(color);
-	endSPITransaction();
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (_use_fbtft) {
+		_pfbtft[y*_width + x] = color;
+
+	} else 
+	#endif
+	{
+		beginSPITransaction();
+		setAddr(x,y,x+1,y+1);
+		writecommand(ST7735_RAMWR);
+		writedata16_last(color);
+		endSPITransaction();
+	}
 }
 
 
@@ -796,14 +841,25 @@ void ST7735_t3::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
 	if ((y+h-1) >= _height) h = _height-y;
-	beginSPITransaction();
-	setAddr(x, y, x, y+h-1);
-	writecommand(ST7735_RAMWR);
-	while (h-- > 1) {
-		writedata16(color);
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (_use_fbtft) {
+		uint16_t * pfbPixel = &_pfbtft[ y*_width + x];
+		while (h--) {
+			*pfbPixel = color;
+			pfbPixel += _width;
+		}
+	} else 
+	#endif
+	{
+		beginSPITransaction();
+		setAddr(x, y, x, y+h-1);
+		writecommand(ST7735_RAMWR);
+		while (h-- > 1) {
+			writedata16(color);
+		}
+		writedata16_last(color);
+		endSPITransaction();
 	}
-	writedata16_last(color);
-	endSPITransaction();
 }
 
 
@@ -812,14 +868,35 @@ void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	// Rudimentary clipping
 	if ((x >= _width) || (y >= _height)) return;
 	if ((x+w-1) >= _width)  w = _width-x;
-	beginSPITransaction();
-	setAddr(x, y, x+w-1, y);
-	writecommand(ST7735_RAMWR);
-	while (w-- > 1) {
-		writedata16(color);
+
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (_use_fbtft) {
+		if ((x&1) || (w&1)) {
+			uint16_t * pfbPixel = &_pfbtft[ y*_width + x];
+			while (w--) {
+				*pfbPixel++ = color;
+			}
+		} else {
+			// X is even and so is w, try 32 bit writes..
+			uint32_t color32 = (color << 16) | color;
+			uint32_t * pfbPixel = (uint32_t*)((uint16_t*)&_pfbtft[ y*_width + x]);
+			while (w) {
+				*pfbPixel++ = color32;
+				w -= 2;
+			}
+		}
+	} else 
+	#endif
+	{
+		beginSPITransaction();
+		setAddr(x, y, x+w-1, y);
+		writecommand(ST7735_RAMWR);
+		while (w-- > 1) {
+			writedata16(color);
+		}
+		writedata16_last(color);
+		endSPITransaction();
 	}
-	writedata16_last(color);
-	endSPITransaction();
 }
 
 
@@ -838,16 +915,44 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 	if ((x >= _width) || (y >= _height)) return;
 	if ((x + w - 1) >= _width)  w = _width  - x;
 	if ((y + h - 1) >= _height) h = _height - y;
-	beginSPITransaction();
-	setAddr(x, y, x+w-1, y+h-1);
-	writecommand(ST7735_RAMWR);
-	for (y=h; y>0; y--) {
-		for(x=w; x>1; x--) {
-			writedata16(color);
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (_use_fbtft) {
+		if ((x&1) || (w&1)) {
+			uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
+			for (;h>0; h--) {
+				uint16_t * pfbPixel = pfbPixel_row;
+				for (int i = 0 ;i < w; i++) {
+					*pfbPixel++ = color;
+				}
+				pfbPixel_row += _width;
+			}
+		} else {
+			// Horizontal is even number so try 32 bit writes instead
+			uint32_t color32 = (color << 16) | color;
+			uint32_t * pfbPixel_row = (uint32_t *)((uint16_t*)&_pfbtft[ y*_width + x]);
+			w = w/2;	// only iterate half the times
+			for (;h>0; h--) {
+				uint32_t * pfbPixel = pfbPixel_row;
+				for (int i = 0 ;i < w; i++) {
+					*pfbPixel++ = color32;
+				}
+				pfbPixel_row += (_width/2);
+			}
 		}
-		writedata16_last(color);
+	} else 
+	#endif
+	{
+		beginSPITransaction();
+		setAddr(x, y, x+w-1, y+h-1);
+		writecommand(ST7735_RAMWR);
+		for (y=h; y>0; y--) {
+			for(x=w; x>1; x--) {
+				writedata16(color);
+			}
+			writedata16_last(color);
+		}
+		endSPITransaction();
 	}
-	endSPITransaction();
 }
 
 
@@ -963,3 +1068,603 @@ void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint
   }
   endSPITransaction();
 }
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+void ST7735_t3::dmaInterrupt(void) {
+	if (_dmaActiveDisplay[0])  {
+		_dmaActiveDisplay[0]->process_dma_interrupt();
+	}
+}
+void ST7735_t3::dmaInterrupt1(void) {
+	if (_dmaActiveDisplay[1])  {
+		_dmaActiveDisplay[1]->process_dma_interrupt();
+	}
+}
+void ST7735_t3::dmaInterrupt2(void) {
+	if (_dmaActiveDisplay[2])  {
+		_dmaActiveDisplay[2]->process_dma_interrupt();
+	}
+}
+
+//=============================================================================
+// Frame buffer support. 
+//=============================================================================
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+#ifdef DEBUG_ASYNC_UPDATE
+extern void dumpDMA_TCD(DMABaseClass *dmabc);
+#endif
+
+void ST7735_t3::process_dma_interrupt(void) {
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_2, HIGH);
+#endif
+#if defined(__MK66FX1M0__) 
+	// T3.6
+	_dma_frame_count++;
+	_dmatx.clearInterrupt();
+
+	// See if we are in continuous mode or not..
+	if ((_dma_state & ST77XX_DMA_CONT) == 0) {
+		// We are in single refresh mode or the user has called cancel so
+		// Lets try to release the CS pin
+		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
+		writecommand_last(ST7735_NOP);
+		endSPITransaction();
+		_dma_state &= ~ST77XX_DMA_ACTIVE;
+		_dmaActiveDisplay[_spi_num] = 0;	// We don't have a display active any more... 
+
+	}
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+	// T4
+
+	_dma_frame_count++;
+
+	if ((_dma_state & ST77XX_DMA_CONT) == 0) {
+		// We are in single refresh mode or the user has called cancel so
+		// Lets try to release the CS pin
+		// Lets wait until FIFO is not empty
+		//Serial.printf("Before FSR wait: %x %x\n", _pimxrt_spi->FSR, _pimxrt_spi->SR);
+		while (_pimxrt_spi->FSR & 0x1f)  ;	// wait until this one is complete
+
+		//Serial.printf("Before SR busy wait: %x\n", _pimxrt_spi->SR);
+		while (_pimxrt_spi->SR & LPSPI_SR_MBF)  ;	// wait until this one is complete
+
+		_dmatx.clearComplete();
+		//Serial.println("Restore FCR");
+		_pimxrt_spi->FCR = LPSPI_FCR_TXWATER(15); // _spi_fcr_save;	// restore the FSR status... 
+ 		_pimxrt_spi->DER = 0;		// DMA no longer doing TX (or RX)
+
+		_pimxrt_spi->CR = LPSPI_CR_MEN | LPSPI_CR_RRF | LPSPI_CR_RTF;   // actually clear both...
+		_pimxrt_spi->SR = 0x3f00;	// clear out all of the other status...
+
+
+		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
+		// Serial4.printf("Output NOP (SR %x CR %x FSR %x FCR %x %x TCR:%x)\n", _pimxrt_spi->SR, _pimxrt_spi->CR, _pimxrt_spi->FSR, 
+		//	_pimxrt_spi->FCR, _spi_fcr_save, _pimxrt_spi->TCR);
+#ifdef DEBUG_ASYNC_LEDS
+		digitalWriteFast(DEBUG_PIN_3, HIGH);
+#endif
+		_pending_rx_count = 0;	// Make sure count is zero
+		writecommand_last(ST7735_NOP);
+#ifdef DEBUG_ASYNC_LEDS
+		digitalWriteFast(DEBUG_PIN_3, LOW);
+#endif
+
+		// Serial4.println("Do End transaction");
+		endSPITransaction();
+		_dma_state &= ~ST77XX_DMA_ACTIVE;
+		_dmaActiveDisplay[_spi_num] = 0;	// We don't have a display active any more... 
+
+ 		// Serial4.println("After End transaction");
+		//Serial.println("$");
+
+	} else {
+		// Maybe have to flush cache to make DMA work...	
+		if ((uint32_t)_pfbtft >= 0x20200000u)  arm_dcache_flush(_pfbtft, _width*_height*2);
+		_dmatx.clearComplete();
+		//Serial.print(".");
+	}
+	_dmatx.clearInterrupt();
+
+#else
+	//--------------------------------------------------------------------
+	// T3.5...
+	_dmarx.clearInterrupt();
+	_dmatx.clearComplete();
+	_dmarx.clearComplete();
+
+	if (!_dma_count_remaining && !(_dma_state & ST77XX_DMA_CONT)) {
+		// The DMA transfers are done.
+		_dma_frame_count++;
+#ifdef DEBUG_ASYNC_LEDS
+		digitalWriteFast(DEBUG_PIN_3, HIGH);
+#endif
+
+		_pkinetisk_spi->RSER = 0;
+		//_pkinetisk_spi->MCR = SPI_MCR_MSTR | SPI_MCR_CLR_RXF | SPI_MCR_PCSIS(0x1F);  // clear out the queue
+		_pkinetisk_spi->SR = 0xFF0F0000;
+		_pkinetisk_spi->CTAR0  &= ~(SPI_CTAR_FMSZ(8)); 	// Hack restore back to 8 bits
+
+		writecommand_last(ST7735_NOP);
+		endSPITransaction();
+		_dma_state &= ~ST77XX_DMA_ACTIVE;
+		_dmaActiveDisplay[_spi_num] = 0;	// We don't have a display active any more... 
+#ifdef DEBUG_ASYNC_LEDS
+		digitalWriteFast(DEBUG_PIN_3, LOW);
+#endif
+
+	} else {
+		uint16_t w;
+		if (_dma_count_remaining) { // Still part of one frome. 
+			_dma_count_remaining -= _dma_write_size_words;
+			w = *((uint16_t*)_dmatx.TCD->SADDR);
+			_dmatx.TCD->SADDR = (volatile uint8_t*)(_dmatx.TCD->SADDR) + 2;
+		} else {  // start a new frame
+			_dma_frame_count++;
+			_dmatx.sourceBuffer(&_pfbtft[1], (_dma_write_size_words-1)*2);
+			_dmatx.TCD->SLAST = 0;	// Finish with it pointing to next location
+			w = _pfbtft[0];
+			_dma_count_remaining = _cbDisplay/2 - _dma_write_size_words;	// how much more to transfer? 
+		}
+#ifdef DEBUG_ASYNC_UPDATE
+//		dumpDMA_TCD(&_dmatx);
+//		dumpDMA_TCD(&_dmarx);
+#endif
+		_pkinetisk_spi->PUSHR = (w | SPI_PUSHR_CTAS(0) | SPI_PUSHR_CONT);
+		_dmarx.enable();
+		_dmatx.enable();
+	}
+
+#endif	
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_2, LOW);
+#endif
+}
+//=======================================================================
+// Add optinal support for using frame buffer to speed up complex outputs
+//=======================================================================
+void ST7735_t3::setFrameBuffer(uint16_t *frame_buffer) 
+{
+	_pfbtft = frame_buffer;
+	// we may not know the size of it, if called before init.
+/*	if (_pfbtft != NULL) {
+		memset(_pfbtft, 0, _width*_height*2);
+	} */
+}
+
+uint8_t ST7735_t3::useFrameBuffer(boolean b)		// use the frame buffer?  First call will allocate
+{
+	if (b) {
+		// First see if we need to allocate buffer
+		if (_pfbtft == NULL) {
+			// Hack to start frame buffer on 32 byte boundary
+			// Note: If called before init maybe larger than we need
+			_cbDisplay =  _width * _height * 2;
+			_we_allocated_buffer = (uint16_t *)malloc(_cbDisplay+32);
+			if (_we_allocated_buffer == NULL)
+				return 0;	// failed 
+			_pfbtft = (uint16_t*) (((uintptr_t)_we_allocated_buffer + 32) & ~ ((uintptr_t) (31)));
+			memset(_pfbtft, 0, _cbDisplay);	
+		}
+		_use_fbtft = 1;
+	} else 
+		_use_fbtft = 0;
+
+	return _use_fbtft;	
+}
+
+void ST7735_t3::freeFrameBuffer(void)						// explicit call to release the buffer
+{
+	if (_we_allocated_buffer) {
+		free(_we_allocated_buffer);
+		_pfbtft = NULL;
+		_use_fbtft = 0;	// make sure the use is turned off
+		_we_allocated_buffer = NULL;
+	}
+}
+void ST7735_t3::updateScreen(void)					// call to say update the screen now.
+{
+	// Not sure if better here to check flag or check existence of buffer.
+	// Will go by buffer as maybe can do interesting things?
+	if (_use_fbtft) {
+		beginSPITransaction();
+		// Doing full window. 
+		setAddr(0, 0, _width-1, _height-1);
+		writecommand(ST7735_RAMWR);
+
+		// BUGBUG doing as one shot.  Not sure if should or not or do like
+		// main code and break up into transactions...
+		uint16_t *pfbtft_end = &_pfbtft[(_width*_height)-1];	// setup 
+		uint16_t *pftbft = _pfbtft;
+
+		// Quick write out the data;
+		while (pftbft < pfbtft_end) {
+			writedata16(*pftbft++);
+		}
+		writedata16_last(*pftbft);
+
+		endSPITransaction();
+	}
+}			 
+
+#ifdef DEBUG_ASYNC_UPDATE
+void dumpDMA_TCD(DMABaseClass *dmabc)
+{
+	Serial4.printf("%x %x:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+
+	Serial4.printf("SA:%x SO:%d AT:%x NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n", (uint32_t)dmabc->TCD->SADDR,
+		dmabc->TCD->SOFF, dmabc->TCD->ATTR, dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR, 
+		dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA, dmabc->TCD->CSR, dmabc->TCD->BITER);
+}
+#endif
+
+//==============================================
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+void	ST7735_t3::initDMASettings(void) 
+{
+	// Serial4.printf("initDMASettings called %d\n", _dma_state);
+	if (_dma_state) {  // should test for init, but...
+		return;	// we already init this. 
+	}
+
+	//Serial.println("InitDMASettings");
+	uint8_t dmaTXevent = _spi_hardware->tx_dma_channel;
+	_cbDisplay = _width*_height * 2;	// cache away the size of the display. 
+	uint16_t COUNT_WORDS_WRITE = (_width*_height) / 2;
+#if defined(__MK66FX1M0__) 
+	// T3.6
+
+	// BUGBUG:: check for -1 as wont work on SPI2 on T3.5
+//	uint16_t *fbtft_start_dma_addr = _pfbtft;
+
+	
+	//Serial.printf("CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, count_words_write);
+	// Now lets setup DMA access to this memory... 
+	_dmasettings[0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
+	_dmasettings[0].destination(_pkinetisk_spi->PUSHR);
+
+	// Hack to reset the destination to only output 2 bytes.
+	_dmasettings[0].TCD->ATTR_DST = 1;
+	_dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+
+	_dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
+	_dmasettings[1].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[1].TCD->ATTR_DST = 1;
+	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+	// Sort of hack - but wrap around to output the first word again. 
+	_dmasettings[2].sourceBuffer(_pfbtft, 2);
+	_dmasettings[2].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[2].TCD->ATTR_DST = 1;
+	_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[0]);
+
+	// Setup DMA main object
+	//Serial.println("Setup _dmatx");
+	_dmatx.begin(true);
+	_dmatx.triggerAtHardwareEvent(dmaTXevent);
+	_dmatx = _dmasettings[0];
+	// probably could use const table of functions...
+	if (_spi_num == 0) _dmatx.attachInterrupt(dmaInterrupt);
+	else if (_spi_num == 1) _dmatx.attachInterrupt(dmaInterrupt1);
+	else _dmatx.attachInterrupt(dmaInterrupt2);
+
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+	// Now lets setup DMA access to this memory... 
+	// Try to do like T3.6 except not kludge for first word...
+	// Serial4.println("DMA initDMASettings - before settings");
+	// Serial4.printf("  CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, COUNT_WORDS_WRITE);
+	_dmasettings[0].sourceBuffer(&_pfbtft[0], COUNT_WORDS_WRITE*2);
+	_dmasettings[0].destination(_pimxrt_spi->TDR);
+	_dmasettings[0].TCD->ATTR_DST = 1;
+	_dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+
+	_dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
+	_dmasettings[1].destination(_pimxrt_spi->TDR);
+	_dmasettings[1].TCD->ATTR_DST = 1;
+	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+	_dmasettings[1].interruptAtCompletion();
+	// Setup DMA main object
+	//Serial.println("Setup _dmatx");
+	// Serial4.println("DMA initDMASettings - before dmatx");
+	_dmatx.begin(true);
+	_dmatx.triggerAtHardwareEvent(dmaTXevent);
+	_dmatx = _dmasettings[0];
+	// probably could use const table of functions...
+	if (_spi_num == 0) _dmatx.attachInterrupt(dmaInterrupt);
+	else if (_spi_num == 1) _dmatx.attachInterrupt(dmaInterrupt1);
+	else _dmatx.attachInterrupt(dmaInterrupt2);
+#else
+	// T3.5
+	// Lets setup the write size.  For SPI we can use up to 32767 so same size as we use on T3.6...
+	// But SPI1 and SPI2 max of 511.  We will use 480 in that case as even divider...
+
+	_dmarx.disable();
+	_dmarx.source(_pkinetisk_spi->POPR);
+	_dmarx.TCD->ATTR_SRC = 1;
+	_dmarx.destination(_dma_dummy_rx);
+	_dmarx.disableOnCompletion();
+	_dmarx.triggerAtHardwareEvent(_spi_hardware->rx_dma_channel);
+	// probably could use const table of functions...
+	if (_spi_num == 0) _dmarx.attachInterrupt(dmaInterrupt);
+	else if (_spi_num == 1) _dmarx.attachInterrupt(dmaInterrupt1);
+	else _dmarx.attachInterrupt(dmaInterrupt2);
+
+	_dmarx.interruptAtCompletion();
+
+	// We may be using settings chain here so lets set it up. 
+	// Now lets setup TX chain.  Note if trigger TX is not set
+	// we need to have the RX do it for us.
+	_dmatx.disable();
+	_dmatx.destination(_pkinetisk_spi->PUSHR);
+	_dmatx.TCD->ATTR_DST = 1;
+	_dmatx.disableOnCompletion();
+	// Current SPIN, has both RX/TX same for SPI1/2 so just know f
+	if (_pspi == &SPI) {
+		_dmatx.triggerAtHardwareEvent(dmaTXevent);
+		_dma_write_size_words = COUNT_WORDS_WRITE;
+	} else {
+		_dma_write_size_words = 480;
+	    _dmatx.triggerAtTransfersOf(_dmarx);
+	}
+	Serial.printf("Init DMA Settings: TX:%d size:%d\n", dmaTXevent, _dma_write_size_words);
+
+#endif
+	_dma_state = ST77XX_DMA_INIT;  // Should be first thing set!
+	// Serial4.println("DMA initDMASettings - end");
+
+}
+#endif
+
+void ST7735_t3::dumpDMASettings() {
+#ifdef DEBUG_ASYNC_UPDATE
+#if defined(__MK66FX1M0__) 
+	// T3.6
+	Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
+	dumpDMA_TCD(&_dmatx);
+	dumpDMA_TCD(&_dmasettings[0]);
+	dumpDMA_TCD(&_dmasettings[1]);
+	dumpDMA_TCD(&_dmasettings[2]);
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+	// Serial4.printf("DMA dump TCDs %d\n", _dmatx.channel);
+	dumpDMA_TCD(&_dmatx);
+	dumpDMA_TCD(&_dmasettings[0]);
+	dumpDMA_TCD(&_dmasettings[1]);
+#else
+	Serial.printf("DMA dump TX:%d RX:%d\n", _dmatx.channel, _dmarx.channel);
+	dumpDMA_TCD(&_dmatx);
+	dumpDMA_TCD(&_dmarx);
+#endif	
+#endif
+
+}
+
+bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update the screen now.
+{
+	// Not sure if better here to check flag or check existence of buffer.
+	// Will go by buffer as maybe can do interesting things?
+	// BUGBUG:: only handles full screen so bail on the rest of it...
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (!_use_fbtft) return false;
+
+
+	#if defined(__MK64FX512__)  // If T3.5 only allow on SPI...
+	// The T3.5 DMA to SPI has issues with preserving stuff like we want 16 bit mode
+	// and we want CS to stay on... So hack it.  We will turn off using CS for the CS
+	//	pin.
+	if (!_csport) {
+		pcs_data = 0;
+		pcs_command = pcs_data | _pspi->setCS(_rs);
+		pinMode(_cs, OUTPUT);
+		_csport    = portOutputRegister(digitalPinToPort(_cs));
+		_cspinmask = digitalPinToBitMask(_cs);
+		*_csport |= _cspinmask;
+	}
+	#endif
+
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_1, HIGH);
+#endif
+	// Init DMA settings. 
+	initDMASettings();
+
+	// Don't start one if already active.
+	if (_dma_state & ST77XX_DMA_ACTIVE) {
+	#ifdef DEBUG_ASYNC_LEDS
+		digitalWriteFast(DEBUG_PIN_1, LOW);
+	#endif
+		return false;
+	}
+
+#if defined(__MK66FX1M0__) 
+	//==========================================
+	// T3.6
+	//==========================================
+	if (update_cont) {
+		// Try to link in #3 into the chain
+		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+		_dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
+		_dmasettings[2].interruptAtCompletion();
+		_dmasettings[2].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
+		_dma_state |= ST77XX_DMA_CONT;
+	} else {
+		// In this case we will only run through once...
+		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+		_dmasettings[1].interruptAtCompletion();
+		_dmasettings[1].disableOnCompletion();
+		_dma_state &= ~ST77XX_DMA_CONT;
+	}
+
+
+#ifdef DEBUG_ASYNC_UPDATE
+	dumpDMASettings();
+#endif
+	beginSPITransaction();
+
+	// Doing full window. 
+	setAddr(0, 0, _width-1, _height-1);
+	writecommand(ST7735_RAMWR);
+
+	// Write the first Word out before enter DMA as to setup the proper CS/DC/Continue flaugs
+	writedata16(*_pfbtft);
+	// now lets start up the DMA
+//	volatile uint16_t  biter = _dmatx.TCD->BITER;
+	//DMA_CDNE_CDNE(_dmatx.channel);
+//	_dmatx = _dmasettings[0];
+//	_dmatx.TCD->BITER = biter;
+	_dma_frame_count = 0;  // Set frame count back to zero. 
+	_dmaActiveDisplay[_spi_num] = this;
+	_dma_state |= ST77XX_DMA_ACTIVE;
+	_pkinetisk_spi->RSER |= SPI_RSER_TFFF_DIRS |	 SPI_RSER_TFFF_RE;	 // Set DMA Interrupt Request Select and Enable register
+	_pkinetisk_spi->MCR &= ~SPI_MCR_HALT;  //Start transfers.
+	_dmatx.enable();
+	//==========================================
+	// T4
+	//==========================================
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+	// TODO
+
+	if (update_cont) {
+		// Which dmasetting we change depends on which display.  Most will fit in one... 
+		// Don't disable on completion...
+		_dmasettings[1].TCD->CSR &= ~( DMA_TCD_CSR_DREQ);
+	} else {
+		// In this case we will only run through once...
+		_dmasettings[1].disableOnCompletion();
+		_dma_state &= ~ST77XX_DMA_CONT;
+	}
+#ifdef DEBUG_ASYNC_UPDATE
+	dumpDMASettings();
+#endif
+
+	// Maybe have to flush cache to make DMA work...
+	if ((uint32_t)_pfbtft >= 0x20200000u)  arm_dcache_flush(_pfbtft, _width*_height*2);
+
+	beginSPITransaction();
+	// Doing full window. 
+	setAddr(0, 0, _width-1, _height-1);
+	writecommand_last(ST7735_RAMWR);
+
+	// Update TCR to 16 bit mode. and output the first entry.
+	_spi_fcr_save = _pimxrt_spi->FCR;	// remember the FCR
+	_pimxrt_spi->FCR = 0;	// clear water marks... 	
+	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_RXMSK /*| LPSPI_TCR_CONT*/);
+//	_pimxrt_spi->CFGR1 |= LPSPI_CFGR1_NOSTALL;
+//	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
+ 	_pimxrt_spi->DER = LPSPI_DER_TDDE;
+	_pimxrt_spi->SR = 0x3f00;	// clear out all of the other status...
+
+  	_dmatx.triggerAtHardwareEvent( _spi_hardware->tx_dma_channel );
+
+ 	_dmatx = _dmasettings[0];
+
+  	_dmatx.begin(false);
+  	_dmatx.enable();
+
+	_dma_frame_count = 0;  // Set frame count back to zero. 
+	_dmaActiveDisplay[_spi_num] = this;
+	if (update_cont) {
+		_dma_state |= ST77XX_DMA_CONT;
+	} else {
+		_dma_state &= ~ST77XX_DMA_CONT;
+
+	}
+
+	_dma_state |= ST77XX_DMA_ACTIVE;
+#else
+	//==========================================
+	// T3.5
+	//==========================================
+
+	// lets setup the initial pointers. 
+	_dmatx.sourceBuffer(&_pfbtft[1], (_dma_write_size_words-1)*2);
+	_dmatx.TCD->SLAST = 0;	// Finish with it pointing to next location
+	_dmarx.transferCount(_dma_write_size_words);
+	_dma_count_remaining = _cbDisplay/2 - _dma_write_size_words;	// how much more to transfer? 
+	Serial.printf("SPI1/2 - TC:%d TR:%d\n", _dma_write_size_words, _dma_count_remaining);
+
+#ifdef DEBUG_ASYNC_UPDATE
+	dumpDMASettings();
+#endif
+
+	beginSPITransaction();
+	// Doing full window. 
+	setAddr(0, 0, _width-1, _height-1);
+	writecommand(ST7735_RAMWR);
+
+	// Write the first Word out before enter DMA as to setup the proper CS/DC/Continue flaugs
+	// On T3.5 DMA only appears to work with CTAR 0 so hack it up...
+	_pkinetisk_spi->CTAR0 |= SPI_CTAR_FMSZ(8); 	// Hack convert from 8 bit to 16 bit...
+
+	_pkinetisk_spi->MCR = SPI_MCR_MSTR | SPI_MCR_CLR_RXF | SPI_MCR_PCSIS(0x1F);
+
+	_pkinetisk_spi->SR = 0xFF0F0000;
+
+	// Lets try to output the first byte to make sure that we are in 16 bit mode...
+	_pkinetisk_spi->PUSHR = *_pfbtft | SPI_PUSHR_CTAS(0) | SPI_PUSHR_CONT;	
+
+	if (_pspi == &SPI) {
+		// SPI - has both TX and RX so use it
+		_pkinetisk_spi->RSER =  SPI_RSER_RFDF_RE | SPI_RSER_RFDF_DIRS | SPI_RSER_TFFF_RE | SPI_RSER_TFFF_DIRS;
+
+	    _dmarx.enable();
+	    _dmatx.enable();
+	} else {
+		_pkinetisk_spi->RSER =  SPI_RSER_RFDF_RE | SPI_RSER_RFDF_DIRS ;
+	    _dmatx.triggerAtTransfersOf(_dmarx);
+	    _dmatx.enable();
+	    _dmarx.enable();
+	}
+
+	_dma_frame_count = 0;  // Set frame count back to zero. 
+	_dmaActiveDisplay[_spi_num] = this;
+	if (update_cont) {
+		_dma_state |= ST77XX_DMA_CONT;
+	} else {
+		_dma_state &= ~ST77XX_DMA_CONT;
+
+	}
+
+	_dma_state |= ST77XX_DMA_ACTIVE;
+#endif	
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_1, LOW);
+#endif
+	return true;
+    #else
+    return false;     // no frame buffer so will never start... 
+	#endif
+
+}			 
+
+void ST7735_t3::endUpdateAsync() {
+	// make sure it is on
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	if (_dma_state & ST77XX_DMA_CONT) {
+		_dma_state &= ~ST77XX_DMA_CONT; // Turn of the continueous mode
+#if defined(__MK66FX1M0__) 
+		_dmasettings[2].disableOnCompletion();
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+		_dmasettings[1].disableOnCompletion();
+#endif
+	}
+	#endif
+}
+	
+void ST7735_t3::waitUpdateAsyncComplete(void) 
+{
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_3, HIGH);
+#endif
+
+	while ((_dma_state & ST77XX_DMA_ACTIVE)) {
+		// asm volatile("wfi");
+	};
+#ifdef DEBUG_ASYNC_LEDS
+	digitalWriteFast(DEBUG_PIN_3, LOW);
+#endif
+	#endif	
+}
+#endif
+
+#endif
+
