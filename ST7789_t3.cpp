@@ -29,6 +29,24 @@
 #define ST77XX_MADCTL_ML  0x10
 #define ST77XX_MADCTL_RGB 0x00
 
+ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST) :
+    ST7735_t3(CS, RS, SID, SCLK, RST) 
+{
+  // Assume the majority of ones.
+  tabcolor = INIT_ST7789_TABCOLOR;
+  _screenHeight = 240;
+  _screenWidth = 240;   
+}
+
+ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) : 
+      ST7735_t3(CS, RS, RST) 
+{
+  tabcolor = INIT_ST7789_TABCOLOR;
+  _screenHeight = 240;
+  _screenWidth = 240;   
+}
+
+
 void  ST7789_t3::setRotation(uint8_t m) 
 {
   beginSPITransaction();
@@ -40,25 +58,31 @@ void  ST7789_t3::setRotation(uint8_t m)
 
      _xstart = _colstart;
      _ystart = _rowstart;
+     _width = _screenWidth;
+     _height = _screenHeight;
      break;
    case 1:
      writedata(ST77XX_MADCTL_MY | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
 
      _xstart = _rowstart;
      _ystart = _colstart;
+     _height = _screenWidth;
+     _width = _screenHeight;
      break;
   case 2:
-     writedata(ST77XX_MADCTL_RGB);
- 
-     _xstart = _colstart;
+     writedata(ST77XX_MADCTL_RGB); 
+     _xstart = 0;
      _ystart = 0; //_rowstart;
+     _width = _screenWidth;
+     _height = _screenHeight;
      break;
 
    case 3:
      writedata(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
-
      _xstart = 0; //_rowstart;
-     _ystart = _colstart;
+     _ystart = 0;
+     _height = _screenWidth;
+     _width = _screenHeight;
      break;
   }
 
@@ -73,8 +97,8 @@ void  ST7789_t3::setRotation(uint8_t m)
 // Probably should use generic names like Adafruit..
 #define DELAY 0x80
 static const uint8_t PROGMEM
-  cmd_240x240[] = {                  // Initialization commands for 7735B screens
-    10,                       // 18 commands in list:
+  cmd_st7789[] = {                  // Initialization commands for 7735B screens
+    9,                       // 9 commands in list:
     ST7735_SWRESET,   DELAY,  //  1: Software reset, no args, w/delay
       150,                     //    150 ms delay
     ST7735_SLPOUT ,   DELAY,  //  2: Out of sleep mode, no args, w/delay
@@ -82,19 +106,23 @@ static const uint8_t PROGMEM
     ST7735_COLMOD , 1+DELAY,  //  3: Set color mode, 1 arg + delay:
       0x55,                   //     16-bit color
       10,                     //     10 ms delay
-    ST7735_MADCTL , 1      ,  //  5: Memory access ctrl (directions), 1 arg:
+    ST7735_MADCTL , 1      ,  //  4: Memory access ctrl (directions), 1 arg:
       0x08,                   //     Row addr/col addr, bottom to top refresh
-    ST7735_CASET  , 4      ,  // 15: Column addr set, 4 args, no delay:
-      0x00, ST7789_240x240_XSTART,             //     XSTART = 0
-    (240+ST7789_240x240_XSTART) >> 8, (240+ST7789_240x240_XSTART) & 0xFF,             //      XEND = 240
-    ST7735_RASET  , 4      ,  // 16: Row addr set, 4 args, no delay:
-      0x00, ST7789_240x240_YSTART,             //     YSTART = 0
-      (240+ST7789_240x240_YSTART) >> 8, (240+ST7789_240x240_YSTART) & 0xFF,             //      YEND = 240
-    ST7735_INVON ,   DELAY,  // hack
+    ST7735_CASET  , 4      ,  //  5: Column addr set, 4 args, no delay:
+      0x00, 
+      0x00,                   //     XSTART = 0
+      0x00, 
+      240,                    //      XEND = 240
+    ST7735_RASET  , 4      ,  // 6: Row addr set, 4 args, no delay:
+      0x00, 
+      0x00,                   //     YSTART = 0
+      320>>8, 
+      320 & 0xFF,             //      YEND = 320
+    ST7735_INVON ,   DELAY,   // 7: hack
       10,
-    ST7735_NORON  ,   DELAY,  // 17: Normal display on, no args, w/delay
+    ST7735_NORON  ,   DELAY,  // 8: Normal display on, no args, w/delay
       10,                     //     10 ms delay
-    ST7735_DISPON ,   DELAY,  // 18: Main screen turn on, no args, w/delay
+    ST7735_DISPON ,   DELAY,  // 9: Main screen turn on, no args, w/delay
     255 };                  //     255 = 500 ms delay
 
 
@@ -103,11 +131,19 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
   Serial.printf("ST7789_t3::init mode: %x\n", mode);
 	commonInit(NULL, mode);
 
-	_colstart = ST7789_240x240_XSTART;
-	_rowstart = ST7789_240x240_YSTART;
-	_height = 240;
-	_width = 240;
-	commandList(cmd_240x240);
+  if ((width == 240) && (height == 240)) {
+    _colstart = 0;
+    _rowstart = 80;
+  } else {
+    _colstart = 0;
+    _rowstart = 0;
+  }
+	_height = height;
+	_width = width;
+  _screenHeight = height;
+  _screenWidth = width;   
+
+	commandList(cmd_st7789);
    setRotation(0);
 }
 

@@ -63,6 +63,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_we_allocated_buffer = NULL;
     #endif
 	_screenHeight = ST7735_TFTHEIGHT_18;
+	_screenWidth = ST7735_TFTWIDTH;	
 }
 
 
@@ -77,6 +78,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
 	_screenHeight = ST7735_TFTHEIGHT_18;
+	_screenWidth = ST7735_TFTWIDTH;	
 }
 
 

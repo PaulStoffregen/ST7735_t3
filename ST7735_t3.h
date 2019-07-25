@@ -228,7 +228,7 @@ class ST7735_t3 : public Adafruit_GFX {
   boolean  hwSPI;
 
 
-  uint8_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight;
+  uint8_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
   SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
