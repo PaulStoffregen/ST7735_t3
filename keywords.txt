@@ -29,3 +29,13 @@ initB	KEYWORD2
 initR	KEYWORD2
 init	KEYWORD2
 setRowColStart	KEYWORD2
+setFrameBuffer	KEYWORD2
+useFrameBuffer	KEYWORD2
+updateScreen	KEYWORD2
+updateScreenAsync	KEYWORD2
+waitUpdateAsyncComplete	KEYWORD2
+endUpdateAsync	KEYWORD2
+frameCount	KEYWORD2
+asyncUpdateActive	KEYWORD2
+freeFrameBuffer	KEYWORD2
+sendCommand	KEYWORD2

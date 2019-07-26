@@ -24,15 +24,12 @@ class ST7789_t3 : public ST7735_t3 {
 
  public:
 
-  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1) :
-    ST7735_t3(CS, RS, SID, SCLK, RST) {}
-
-  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1) :
-      ST7735_t3(CS, RS, RST) {}
+  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1);
+  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1);
 
   virtual void  setRotation(uint8_t m);
 
-  void  init(uint16_t width, uint16_t height, uint8_t mode=SPI_MODE0);
+  void  init(uint16_t width=240, uint16_t height=240, uint8_t mode=SPI_MODE0);
 };
 
 
