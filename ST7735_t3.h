@@ -219,6 +219,7 @@ class ST7735_t3 : public Adafruit_GFX {
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
+           writedata_last(uint8_t d),
            writedata16(uint16_t d),
            writedata16_last(uint16_t d),
            commandList(const uint8_t *addr),
@@ -376,8 +377,8 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 
   #if defined(__MK66FX1M0__) 
   // T3.6 use Scatter/gather with chain to do transfer
-  static DMASetting   _dmasettings[3];
-  static DMAChannel   _dmatx;
+  DMASetting   _dmasettings[3];
+  DMAChannel   _dmatx;
 
   #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
   // Going to try it similar to T4.

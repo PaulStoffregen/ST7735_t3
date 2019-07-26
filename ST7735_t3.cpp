@@ -25,9 +25,6 @@
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK66FX1M0__) 
-	// T3.6 use Scatter/gather with chain to do transfer
-DMASetting 	ST7735_t3::_dmasettings[3];
-DMAChannel 	ST7735_t3::_dmatx;
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
 //DMASetting 	ST7735_t3::_dmasettings[2];
 //DMAChannel 	ST7735_t3::_dmatx;
@@ -141,6 +138,20 @@ void ST7735_t3::writedata(uint8_t c)
 	if (hwSPI) {
 		_pkinetisk_spi->PUSHR = c | (pcs_data << 16) | SPI_PUSHR_CTAS(0);
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
+	} else {
+		*rspin = 1;
+		*cspin = 0;
+		spiwrite(c);
+		*cspin = 1;
+	}
+}
+
+void ST7735_t3::writedata_last(uint8_t c)
+{
+	if (hwSPI) {
+		uint32_t mcr = _pkinetisk_spi->MCR;
+		_pkinetisk_spi->PUSHR = c | (pcs_data << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
+		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 1;
 		*cspin = 0;
@@ -270,6 +281,19 @@ void ST7735_t3::writedata(uint8_t c)
 	}
 } 
 
+void ST7735_t3::writedata_last(uint8_t c)
+{
+	if (hwSPI) {
+		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+		_pimxrt_spi->TDR = c;
+		_pending_rx_count++;	//
+		waitTransmitComplete();
+	} else {
+		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+		spiwrite(c);
+	}
+} 
+
 
 void ST7735_t3::writedata16(uint16_t d)
 {
@@ -350,6 +374,12 @@ void ST7735_t3::writecommand_last(uint8_t c)
 }
 
 void ST7735_t3::writedata(uint8_t c)
+{
+	*rsport |=  rspinmask;
+	spiwrite(c);
+} 
+
+void ST7735_t3::writedata_last(uint8_t c)
 {
 	*rsport |=  rspinmask;
 	spiwrite(c);
@@ -546,10 +576,12 @@ void ST7735_t3::commandList(const uint8_t *addr)
 		numArgs  = pgm_read_byte(addr++);	//   Number of args to follow
 		ms       = numArgs & DELAY;		//   If hibit set, delay follows args
 		numArgs &= ~DELAY;			//   Mask out delay bit
-		while(numArgs--) {			//   For each argument...
+		while(numArgs > 1) {			//   For each argument...
 			writedata(pgm_read_byte(addr++)); //   Read, issue argument
+			numArgs--;
 		}
 
+		if (numArgs) writedata_last(pgm_read_byte(addr++)); //   Read, issue argument - wait until this one completes
 		if(ms) {
 			ms = pgm_read_byte(addr++);	// Read post-command delay time (ms)
 			if(ms == 255) ms = 500;		// If 255, delay for 500 ms
@@ -617,6 +649,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 			cspin = portOutputRegister(digitalPinToPort(_cs));
 			*cspin = 1;
 		}
+		// Hack to get hold of the SPI Hardware information... 
+	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
+		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
 	} else {
 		hwSPI = false;
 		cspin = portOutputRegister(digitalPinToPort(_cs));
@@ -795,7 +830,7 @@ void ST7735_t3::initR(uint8_t options)
 	// if black, change MADCTL color filter
 	if (options == INITR_BLACKTAB) {
 		writecommand(ST7735_MADCTL);
-		writedata(0xC0);
+		writedata_last(0xC0);
 	}
 
 	tabcolor = options;
@@ -974,9 +1009,9 @@ void ST7735_t3::setRotation(uint8_t m)
 	switch (rotation) {
 	case 0:
 		if (tabcolor == INITR_BLACKTAB) {
-			writedata(MADCTL_MX | MADCTL_MY | MADCTL_RGB);
+			writedata_last(MADCTL_MX | MADCTL_MY | MADCTL_RGB);
 		} else {
-			writedata(MADCTL_MX | MADCTL_MY | MADCTL_BGR);
+			writedata_last(MADCTL_MX | MADCTL_MY | MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
 		_height = _screenHeight;
@@ -985,9 +1020,9 @@ void ST7735_t3::setRotation(uint8_t m)
 		break;
 	case 1:
 		if (tabcolor == INITR_BLACKTAB) {
-			writedata(MADCTL_MY | MADCTL_MV | MADCTL_RGB);
+			writedata_last(MADCTL_MY | MADCTL_MV | MADCTL_RGB);
 		} else {
-			writedata(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
+			writedata_last(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 		}
 		_height = ST7735_TFTWIDTH;
 		_width = _screenHeight;
@@ -996,9 +1031,9 @@ void ST7735_t3::setRotation(uint8_t m)
 		break;
 	case 2:
 		if (tabcolor == INITR_BLACKTAB) {
-			writedata(MADCTL_RGB);
+			writedata_last(MADCTL_RGB);
 		} else {
-			writedata(MADCTL_BGR);
+			writedata_last(MADCTL_BGR);
 		}
 		_width  = ST7735_TFTWIDTH;
 		_height = _screenHeight;
@@ -1008,9 +1043,9 @@ void ST7735_t3::setRotation(uint8_t m)
 		break;
 	case 3:
 		if (tabcolor == INITR_BLACKTAB) {
-			writedata(MADCTL_MX | MADCTL_MV | MADCTL_RGB);
+			writedata_last(MADCTL_MX | MADCTL_MV | MADCTL_RGB);
 		} else {
-			writedata(MADCTL_MX | MADCTL_MV | MADCTL_BGR);
+			writedata_last(MADCTL_MX | MADCTL_MV | MADCTL_BGR);
 		}
 		_width = _screenHeight;
 		_height = ST7735_TFTWIDTH;
@@ -1050,9 +1085,11 @@ void ST7735_t3::sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8
 
     writecommand_last(commandByte); // Send the command byte
   
-    for (uint8_t i=0; i<numDataBytes; i++) {
+    while (numDataBytes > 1) {
 	  writedata(*dataBytes++); // Send the data bytes
+	  numDataBytes--;
     }
+    if (numDataBytes) writedata_last(*dataBytes);
   
     endSPITransaction();
 }
@@ -1103,6 +1140,7 @@ void ST7735_t3::process_dma_interrupt(void) {
 	// T3.6
 	_dma_frame_count++;
 	_dmatx.clearInterrupt();
+//	Serial.println(" ST7735_t3::process_dma_interrupt");
 
 	// See if we are in continuous mode or not..
 	if ((_dma_state & ST77XX_DMA_CONT) == 0) {
@@ -1140,7 +1178,7 @@ void ST7735_t3::process_dma_interrupt(void) {
 
 
 		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
-		// Serial4.printf("Output NOP (SR %x CR %x FSR %x FCR %x %x TCR:%x)\n", _pimxrt_spi->SR, _pimxrt_spi->CR, _pimxrt_spi->FSR, 
+		// Serial.printf("Output NOP (SR %x CR %x FSR %x FCR %x %x TCR:%x)\n", _pimxrt_spi->SR, _pimxrt_spi->CR, _pimxrt_spi->FSR, 
 		//	_pimxrt_spi->FCR, _spi_fcr_save, _pimxrt_spi->TCR);
 #ifdef DEBUG_ASYNC_LEDS
 		digitalWriteFast(DEBUG_PIN_3, HIGH);
@@ -1151,12 +1189,12 @@ void ST7735_t3::process_dma_interrupt(void) {
 		digitalWriteFast(DEBUG_PIN_3, LOW);
 #endif
 
-		// Serial4.println("Do End transaction");
+		// Serial.println("Do End transaction");
 		endSPITransaction();
 		_dma_state &= ~ST77XX_DMA_ACTIVE;
 		_dmaActiveDisplay[_spi_num] = 0;	// We don't have a display active any more... 
 
- 		// Serial4.println("After End transaction");
+ 		// Serial.println("After End transaction");
 		//Serial.println("$");
 
 	} else {
@@ -1291,9 +1329,9 @@ void ST7735_t3::updateScreen(void)					// call to say update the screen now.
 #ifdef DEBUG_ASYNC_UPDATE
 void dumpDMA_TCD(DMABaseClass *dmabc)
 {
-	Serial4.printf("%x %x:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
+	Serial.printf("%x %x:", (uint32_t)dmabc, (uint32_t)dmabc->TCD);
 
-	Serial4.printf("SA:%x SO:%d AT:%x NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n", (uint32_t)dmabc->TCD->SADDR,
+	Serial.printf("SA:%x SO:%d AT:%x NB:%x SL:%d DA:%x DO: %d CI:%x DL:%x CS:%x BI:%x\n", (uint32_t)dmabc->TCD->SADDR,
 		dmabc->TCD->SOFF, dmabc->TCD->ATTR, dmabc->TCD->NBYTES, dmabc->TCD->SLAST, (uint32_t)dmabc->TCD->DADDR, 
 		dmabc->TCD->DOFF, dmabc->TCD->CITER, dmabc->TCD->DLASTSGA, dmabc->TCD->CSR, dmabc->TCD->BITER);
 }
@@ -1303,7 +1341,7 @@ void dumpDMA_TCD(DMABaseClass *dmabc)
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
 void	ST7735_t3::initDMASettings(void) 
 {
-	// Serial4.printf("initDMASettings called %d\n", _dma_state);
+	// Serial.printf("initDMASettings called %d\n", _dma_state);
 	if (_dma_state) {  // should test for init, but...
 		return;	// we already init this. 
 	}
@@ -1312,6 +1350,7 @@ void	ST7735_t3::initDMASettings(void)
 	uint8_t dmaTXevent = _spi_hardware->tx_dma_channel;
 	_cbDisplay = _width*_height * 2;	// cache away the size of the display. 
 	uint16_t COUNT_WORDS_WRITE = (_width*_height) / 2;
+//	Serial.printf("cbDisplay: %u COUNT_WORDS_WRITE:%d(%x) spi_num:%d\n", _cbDisplay, COUNT_WORDS_WRITE, COUNT_WORDS_WRITE, _spi_num);
 #if defined(__MK66FX1M0__) 
 	// T3.6
 
@@ -1352,8 +1391,8 @@ void	ST7735_t3::initDMASettings(void)
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
 	// Now lets setup DMA access to this memory... 
 	// Try to do like T3.6 except not kludge for first word...
-	// Serial4.println("DMA initDMASettings - before settings");
-	// Serial4.printf("  CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, COUNT_WORDS_WRITE);
+	// Serial.println("DMA initDMASettings - before settings");
+	// Serial.printf("  CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, COUNT_WORDS_WRITE);
 	_dmasettings[0].sourceBuffer(&_pfbtft[0], COUNT_WORDS_WRITE*2);
 	_dmasettings[0].destination(_pimxrt_spi->TDR);
 	_dmasettings[0].TCD->ATTR_DST = 1;
@@ -1366,7 +1405,7 @@ void	ST7735_t3::initDMASettings(void)
 	_dmasettings[1].interruptAtCompletion();
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
-	// Serial4.println("DMA initDMASettings - before dmatx");
+	// Serial.println("DMA initDMASettings - before dmatx");
 	_dmatx.begin(true);
 	_dmatx.triggerAtHardwareEvent(dmaTXevent);
 	_dmatx = _dmasettings[0];
@@ -1411,7 +1450,7 @@ void	ST7735_t3::initDMASettings(void)
 
 #endif
 	_dma_state = ST77XX_DMA_INIT;  // Should be first thing set!
-	// Serial4.println("DMA initDMASettings - end");
+	// Serial.println("DMA initDMASettings - end");
 
 }
 #endif
@@ -1426,7 +1465,7 @@ void ST7735_t3::dumpDMASettings() {
 	dumpDMA_TCD(&_dmasettings[1]);
 	dumpDMA_TCD(&_dmasettings[2]);
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
-	// Serial4.printf("DMA dump TCDs %d\n", _dmatx.channel);
+	// Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dmatx);
 	dumpDMA_TCD(&_dmasettings[0]);
 	dumpDMA_TCD(&_dmasettings[1]);

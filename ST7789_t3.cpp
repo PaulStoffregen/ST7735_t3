@@ -54,7 +54,7 @@ void  ST7789_t3::setRotation(uint8_t m)
   rotation = m % 4; // can't be higher than 3
   switch (rotation) {
    case 0:
-     writedata(ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_RGB);
+     writedata_last(ST77XX_MADCTL_MX | ST77XX_MADCTL_MY | ST77XX_MADCTL_RGB);
 
      _xstart = _colstart;
      _ystart = _rowstart;
@@ -62,7 +62,7 @@ void  ST7789_t3::setRotation(uint8_t m)
      _height = _screenHeight;
      break;
    case 1:
-     writedata(ST77XX_MADCTL_MY | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
+     writedata_last(ST77XX_MADCTL_MY | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
 
      _xstart = _rowstart;
      _ystart = _colstart;
@@ -70,7 +70,7 @@ void  ST7789_t3::setRotation(uint8_t m)
      _width = _screenHeight;
      break;
   case 2:
-     writedata(ST77XX_MADCTL_RGB); 
+     writedata_last(ST77XX_MADCTL_RGB); 
      _xstart = 0;
      _ystart = 0; //_rowstart;
      _width = _screenWidth;
@@ -78,7 +78,7 @@ void  ST7789_t3::setRotation(uint8_t m)
      break;
 
    case 3:
-     writedata(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
+     writedata_last(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
      _xstart = 0; //_rowstart;
      _ystart = 0;
      _height = _screenWidth;
