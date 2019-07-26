@@ -24,19 +24,9 @@
 #include <SPI.h>
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
-#if defined(__MK66FX1M0__) 
-#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
-//DMASetting 	ST7735_t3::_dmasettings[2];
-//DMAChannel 	ST7735_t3::_dmatx;
-#else
-// T3.5 - had issues scatter/gather so do just use channels/interrupts
-// and update and continue
-DMAChannel  ST7735_t3::_dmatx;
-DMAChannel  ST7735_t3::_dmarx;
-uint16_t 	ST7735_t3::_dma_count_remaining;
-uint16_t	ST7735_t3::_dma_write_size_words;
+//#define DEBUG_ASYNC_UPDATE
+
 volatile short _dma_dummy_rx;
-#endif	
 
 ST7735_t3 *ST7735_t3::_dmaActiveDisplay[3] = {0, 0, 0};
 //volatile uint8_t  	ST7735_t3::_dma_state = 0;  // Use pointer to this as a way to get back to object...
@@ -635,6 +625,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		_pspi->setSCK(_sclk);
 		_pspi->begin();
 		//Serial.println("After SPI begin");
+		_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
 		// See if both CS and DC are valid CS pins.
 		if (_pspi->pinIsChipSelect(_rs, _cs)) {
 			pcs_data = _pspi->setCS(_cs);
@@ -1136,11 +1127,11 @@ void ST7735_t3::process_dma_interrupt(void) {
 #ifdef DEBUG_ASYNC_LEDS
 	digitalWriteFast(DEBUG_PIN_2, HIGH);
 #endif
+	// Serial.println(" ST7735_t3::process_dma_interrupt");
 #if defined(__MK66FX1M0__) 
 	// T3.6
 	_dma_frame_count++;
 	_dmatx.clearInterrupt();
-//	Serial.println(" ST7735_t3::process_dma_interrupt");
 
 	// See if we are in continuous mode or not..
 	if ((_dma_state & ST77XX_DMA_CONT) == 0) {
@@ -1446,7 +1437,7 @@ void	ST7735_t3::initDMASettings(void)
 		_dma_write_size_words = 480;
 	    _dmatx.triggerAtTransfersOf(_dmarx);
 	}
-	Serial.printf("Init DMA Settings: TX:%d size:%d\n", dmaTXevent, _dma_write_size_words);
+	//Serial.printf("Init DMA Settings: TX:%d size:%d\n", dmaTXevent, _dma_write_size_words);
 
 #endif
 	_dma_state = ST77XX_DMA_INIT;  // Should be first thing set!
@@ -1491,13 +1482,13 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// The T3.5 DMA to SPI has issues with preserving stuff like we want 16 bit mode
 	// and we want CS to stay on... So hack it.  We will turn off using CS for the CS
 	//	pin.
-	if (!_csport) {
+	if (!cspin) {
+		//Serial.println("***T3.5 CS Pin hack");
 		pcs_data = 0;
 		pcs_command = pcs_data | _pspi->setCS(_rs);
 		pinMode(_cs, OUTPUT);
-		_csport    = portOutputRegister(digitalPinToPort(_cs));
-		_cspinmask = digitalPinToBitMask(_cs);
-		*_csport |= _cspinmask;
+		cspin    = portOutputRegister(digitalPinToPort(_cs));
+		*cspin = 1;
 	}
 	#endif
 
@@ -1620,7 +1611,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	_dmatx.TCD->SLAST = 0;	// Finish with it pointing to next location
 	_dmarx.transferCount(_dma_write_size_words);
 	_dma_count_remaining = _cbDisplay/2 - _dma_write_size_words;	// how much more to transfer? 
-	Serial.printf("SPI1/2 - TC:%d TR:%d\n", _dma_write_size_words, _dma_count_remaining);
+	//Serial.printf("SPI1/2 - TC:%d TR:%d\n", _dma_write_size_words, _dma_count_remaining);
 
 #ifdef DEBUG_ASYNC_UPDATE
 	dumpDMASettings();

@@ -390,10 +390,10 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   // and update and continue
   uint8_t _cspinmask;
   volatile uint8_t *_csport = nullptr;
-  static DMAChannel   _dmatx;
-  static DMAChannel   _dmarx;
-  static uint16_t   _dma_count_remaining;
-  static uint16_t   _dma_write_size_words;
+  DMAChannel   _dmatx;
+  DMAChannel   _dmarx;
+  uint16_t   _dma_count_remaining;
+  uint16_t   _dma_write_size_words;
   #endif  
   static void dmaInterrupt(void);
   static void dmaInterrupt1(void);
