@@ -636,16 +636,18 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 			// We already verified that _rs was valid CS pin above.
 			pcs_data = 0;
 			pcs_command = pcs_data | _pspi->setCS(_rs);
-			pinMode(_cs, OUTPUT);
-			cspin = portOutputRegister(digitalPinToPort(_cs));
-			*cspin = 1;
+			if (_cs != 0xff) {
+				pinMode(_cs, OUTPUT);
+				cspin = portOutputRegister(digitalPinToPort(_cs));
+				*cspin = 1;
+			}
 		}
 		// Hack to get hold of the SPI Hardware information... 
 	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
 		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
 	} else {
 		hwSPI = false;
-		cspin = portOutputRegister(digitalPinToPort(_cs));
+		cspin = (_cs != 0xff)? portOutputRegister(digitalPinToPort(_cs)) : 0;
 		rspin = portOutputRegister(digitalPinToPort(_rs));
 		clkpin = portOutputRegister(digitalPinToPort(_sclk));
 		datapin = portOutputRegister(digitalPinToPort(_sid));
@@ -653,7 +655,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		*rspin = 0;
 		*clkpin = 0;
 		*datapin = 0;
-		pinMode(_cs, OUTPUT);
+		if (_cs != 0xff) pinMode(_cs, OUTPUT);
 		pinMode(_rs, OUTPUT);
 		pinMode(_sclk, OUTPUT);
 		pinMode(_sid, OUTPUT);
@@ -682,10 +684,12 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		_pspi->begin();
 		_pending_rx_count = 0;
 		_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
-		_pspi->beginTransaction(_spiSettings); // 4 MHz (half speed)
+		_pspi->beginTransaction(_spiSettings); // Should have our settings. 
+		_pspi->transfer(0);	// hack to see if it will actually change then...
 		_pspi->endTransaction();
 		_spi_tcr_current = _pimxrt_spi->TCR; // get the current TCR value 
-	
+//		uint32_t *phack = (uint32_t* )&_spiSettings;
+//		Serial.printf("SPI Settings: TCR: %x %x (%x %x)\n", _spi_tcr_current, _pimxrt_spi->TCR, phack[0], phack[1]);
 		// Hack to get hold of the SPI Hardware information... 
 	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
 		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
@@ -703,10 +707,13 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		DIRECT_WRITE_LOW(_mosiport, _mosipinmask);
 
 	}
-	_csport = portOutputRegister(_cs);
-	_cspinmask = digitalPinToBitMask(_cs);
-	pinMode(_cs, OUTPUT);	
-	DIRECT_WRITE_HIGH(_csport, _cspinmask);
+	if (_cs != 0xff) {
+		_csport = portOutputRegister(_cs);
+		_cspinmask = digitalPinToBitMask(_cs);
+		pinMode(_cs, OUTPUT);	
+		DIRECT_WRITE_HIGH(_csport, _cspinmask);		
+	} else _csport = 0;
+
 	if (_pspi && _pspi->pinIsChipSelect(_rs)) {
 	 	_pspi->setCS(_rs);
 	 	_dcport = 0;
@@ -736,27 +743,25 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		}
 	}
  
+	if (_cs != 0xff) {
+		pinMode(_cs, OUTPUT);
+		csport    = portOutputRegister(digitalPinToPort(_cs));
+		cspinmask = digitalPinToBitMask(_cs);		
+	} else csport = 0;
+
 	pinMode(_rs, OUTPUT);
-	pinMode(_cs, OUTPUT);
-	csport    = portOutputRegister(digitalPinToPort(_cs));
 	rsport    = portOutputRegister(digitalPinToPort(_rs));
-	cspinmask = digitalPinToBitMask(_cs);
 	rspinmask = digitalPinToBitMask(_rs);
+	_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
 
 	if(hwSPI) { // Using hardware SPI
 		if (_sclk == 14) SPI.setSCK(14);
 		if (_sid == 7) SPI.setMOSI(7);
 		SPI.begin();
-		SPI.setClockDivider(SPI_CLOCK_DIV4); // 4 MHz (half speed)
-		SPI.setBitOrder(MSBFIRST);
-		SPI.setDataMode(SPI_MODE0);
 	} else if(hwSPI1) { // Using hardware SPI
 		SPI1.setSCK(_sclk);
 		SPI1.setMOSI(_sid);
 		SPI1.begin();
-		SPI1.setClockDivider(SPI_CLOCK_DIV4); // 4 MHz (half speed)
-		SPI1.setBitOrder(MSBFIRST);
-		SPI1.setDataMode(SPI_MODE0);
 	} else {
 		pinMode(_sclk, OUTPUT);
 		pinMode(_sid , OUTPUT);
@@ -829,7 +834,7 @@ void ST7735_t3::initR(uint8_t options)
 }
 
 
-void ST7735_t3::setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1)
+void ST7735_t3::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
 {
 	beginSPITransaction();
 	setAddr(x0, y0, x1, y1);
@@ -1050,7 +1055,7 @@ void ST7735_t3::setRotation(uint8_t m)
 	endSPITransaction();
 }
 
-void ST7735_t3::setRowColStart(uint8_t x, uint8_t y) {
+void ST7735_t3::setRowColStart(uint16_t x, uint16_t y) {
 	_rowstart = x;
 	_colstart = y;
 	if (_rot != 0xff) setRotation(_rot);
@@ -1482,7 +1487,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// The T3.5 DMA to SPI has issues with preserving stuff like we want 16 bit mode
 	// and we want CS to stay on... So hack it.  We will turn off using CS for the CS
 	//	pin.
-	if (!cspin) {
+	if (!cspin && (_cs != 0xff)) {
 		//Serial.println("***T3.5 CS Pin hack");
 		pcs_data = 0;
 		pcs_command = pcs_data | _pspi->setCS(_rs);

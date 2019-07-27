@@ -37,6 +37,7 @@
 #endif
 
 #define ST7735_SPICLOCK 24000000
+//#define ST7735_SPICLOCK 16000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
@@ -135,7 +136,7 @@ class ST7735_t3 : public Adafruit_GFX {
 
   void     initB(void),                             // for ST7735B displays
            initR(uint8_t options = INITR_GREENTAB), // for ST7735R
-           setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1),
+           setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1),
            pushColor(uint16_t color),
            fillScreen(uint16_t color),
            drawPixel(int16_t x, int16_t y, uint16_t color),
@@ -144,9 +145,9 @@ class ST7735_t3 : public Adafruit_GFX {
            fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   virtual void setRotation(uint8_t r);
   void     invertDisplay(boolean i);
-  void     setRowColStart(uint8_t x, uint8_t y);
-  uint8_t  rowStart() {return _rowstart;}
-  uint8_t  colStart() {return _colstart;}
+  void     setRowColStart(uint16_t x, uint16_t y);
+  uint16_t  rowStart() {return _rowstart;}
+  uint16_t  colStart() {return _colstart;}
 
   void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     __attribute__((always_inline)) {
@@ -229,7 +230,7 @@ class ST7735_t3 : public Adafruit_GFX {
   boolean  hwSPI;
 
 
-  uint8_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
+  uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
   SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
@@ -297,11 +298,11 @@ class ST7735_t3 : public Adafruit_GFX {
 
   inline void beginSPITransaction() {
     if (hwSPI) _pspi->beginTransaction(_spiSettings);
-    if (_cs != 0xff)DIRECT_WRITE_LOW(_csport, _cspinmask);
+    if (_csport)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
   inline void endSPITransaction() {
-    DIRECT_WRITE_HIGH(_csport, _cspinmask);
+    if (_csport)DIRECT_WRITE_HIGH(_csport, _cspinmask);
     if (hwSPI) _pspi->endTransaction();  
   }
 
@@ -350,13 +351,13 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
   inline void beginSPITransaction() {
-    if (hwSPI) SPI.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-    else if (hwSPI1) SPI1.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-    *csport &= ~cspinmask;
+    if (hwSPI) SPI.beginTransaction(_spiSettings);
+    else if (hwSPI1) SPI1.beginTransaction(_spiSettings);
+    if (csport)*csport &= ~cspinmask;
   }
 
-  inline void ST7735_t3::endSPITransaction() {
-    *csport |= cspinmask;
+  inline void endSPITransaction() {
+    if (csport) *csport |= cspinmask;
     if (hwSPI) SPI.endTransaction(); 
     else if (hwSPI1)  SPI1.endTransaction();  
   }
