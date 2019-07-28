@@ -25,24 +25,18 @@
 
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-// Max DMA settings we need is 2 for ST7789, but for ST7735 1 should o
 #define ENABLE_ST77XX_FRAMEBUFFER
-//#define SCREEN_DMA_NUM_SETTINGS (((uint32_t)((2 * ST77XX_TFTHEIGHT * ST77XX_TFTWIDTH) / 65536UL))+1)
-#define SCREEN_DMA_NUM_SETTINGS 3 // see if making it a constant value makes difference...
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
 #define ENABLE_ST77XX_FRAMEBUFFER
-//#define SCREEN_DMA_NUM_SETTINGS (((uint32_t)((2 * ST77XX_TFTHEIGHT * ST77XX_TFTWIDTH) / 65536UL))+1)
-#define SCREEN_DMA_NUM_SETTINGS 2 // see if making it a constant value makes difference...
 #endif
-#endif
-
 // Lets allow the user to define if they want T3.2 to enable frame buffer.
 // it will only work on subset of displays due to memory
 #define ENABLE_ST77XX_FRAMEBUFFER_T32
 #if defined(__MK20DX256__) && defined(ENABLE_ST77XX_FRAMEBUFFER_T32)
 #define ENABLE_ST77XX_FRAMEBUFFER
-#define SCREEN_DMA_NUM_SETTINGS 3 // see if making it a constant value makes difference...
 #endif
+#endif
+
 
 #define ST7735_SPICLOCK 24000000
 //#define ST7735_SPICLOCK 16000000
@@ -57,14 +51,16 @@
 #define INITR_18BLACKTAB    INITR_BLACKTAB
 #define INITR_144GREENTAB   0x1
 #define INITR_144GREENTAB_OFFSET   0x4
+#define INITR_MINI160x80  0x05
 
 #define INIT_ST7789_TABCOLOR 42  // Not used except as a indicator to the code... 
 
 #define ST7735_TFTWIDTH  128
+#define ST7735_TFTWIDTH_80     80 // for mini
 // for 1.44" display
 #define ST7735_TFTHEIGHT_144 128
-// for 1.8" display
-#define ST7735_TFTHEIGHT_18  160
+// for 1.8" display and mini
+#define ST7735_TFTHEIGHT_160  160 // for 1.8" and mini display
 
 #define ST7735_NOP     0x00
 #define ST7735_SWRESET 0x01
@@ -386,13 +382,14 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 
   #if defined(__MK66FX1M0__) 
   // T3.6 use Scatter/gather with chain to do transfer
-  DMASetting   _dmasettings[3];
+  DMASetting   _dmasettings[4];
   DMAChannel   _dmatx;
-
+  uint8_t      _cnt_dma_settings;   // how many do we need for this display?
   #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
   // Going to try it similar to T4.
-  DMASetting   _dmasettings[2];
+  DMASetting   _dmasettings[3];
   DMAChannel   _dmatx;
+  uint8_t      _cnt_dma_settings;   // how many do we need for this display?
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
   #elif defined(__MK64FX512__)
   // T3.5 - had issues scatter/gather so do just use channels/interrupts

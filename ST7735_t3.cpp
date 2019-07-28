@@ -35,7 +35,7 @@ ST7735_t3 *ST7735_t3::_dmaActiveDisplay[3] = {0, 0, 0};
 
 // Constructor when using software SPI.  All output pins are configurable.
 ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t rst) :
- Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_18)
+ Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160)
 {
 	_cs   = cs;
 	_rs   = rs;
@@ -49,7 +49,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
     _use_fbtft = 0;						// Are we in frame buffer mode?
 	_we_allocated_buffer = NULL;
     #endif
-	_screenHeight = ST7735_TFTHEIGHT_18;
+	_screenHeight = ST7735_TFTHEIGHT_160;
 	_screenWidth = ST7735_TFTWIDTH;	
 }
 
@@ -57,14 +57,14 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
 // specific to each board type (e.g. 11,13 for Uno, 51,52 for Mega, etc.)
 ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
-  Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_18) {
+  Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160) {
 	_cs   = cs;
 	_rs   = rs;
 	_rst  = rst;
 	_rot = 0xff;
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
-	_screenHeight = ST7735_TFTHEIGHT_18;
+	_screenHeight = ST7735_TFTHEIGHT_160;
 	_screenWidth = ST7735_TFTWIDTH;	
 }
 
@@ -533,6 +533,15 @@ static const uint8_t PROGMEM
       0x00, 0x00,             //     XSTART = 0
       0x00, 0x7F },           //     XEND = 127
 
+  Rcmd2green160x80[] = {            // 7735R init, part 2 (mini 160x80)
+    2,                              //  2 commands in list:
+    ST7735_CASET,   4,              //  1: Column addr set, 4 args, no delay:
+      0x00, 0x00,                   //     XSTART = 0
+      0x00, 0x4F,                   //     XEND = 79
+    ST7735_RASET,   4,              //  2: Row addr set, 4 args, no delay:
+      0x00, 0x00,                   //     XSTART = 0
+      0x00, 0x9F },                 //     XEND = 159
+
   Rcmd3[] = {                 // Init for 7735R, part 3 (red or green tab)
     4,                        //  4 commands in list:
     ST7735_GMCTRP1, 16      , //  1: Magical unicorn dust, 16 args, no delay:
@@ -817,14 +826,20 @@ void ST7735_t3::initR(uint8_t options)
 		commandList(Rcmd2green144);
 		_colstart = 0;
 		_rowstart = 32;
+	  } else if(options == INITR_MINI160x80) {
+	    _screenHeight   = ST7735_TFTHEIGHT_160;
+	    _screenWidth    = ST7735_TFTWIDTH_80;
+	    commandList(Rcmd2green160x80);
+	    _colstart = 24;
+	    _rowstart = 0;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
 	}
 	commandList(Rcmd3);
 
-	// if black, change MADCTL color filter
-	if (options == INITR_BLACKTAB) {
+	// if black or mini, change MADCTL color filter
+	if ((options == INITR_BLACKTAB)  || (options == INITR_MINI160x80)){
 		writecommand(ST7735_MADCTL);
 		writedata_last(0xC0);
 	}
@@ -1004,47 +1019,47 @@ void ST7735_t3::setRotation(uint8_t m)
 	rotation = m % 4; // can't be higher than 3
 	switch (rotation) {
 	case 0:
-		if (tabcolor == INITR_BLACKTAB) {
+     	if ((tabcolor == INITR_BLACKTAB) || (tabcolor == INITR_MINI160x80)) {
 			writedata_last(MADCTL_MX | MADCTL_MY | MADCTL_RGB);
 		} else {
 			writedata_last(MADCTL_MX | MADCTL_MY | MADCTL_BGR);
 		}
-		_width  = ST7735_TFTWIDTH;
+		_width  = _screenWidth;
 		_height = _screenHeight;
 	    _xstart = _colstart;
 	    _ystart = _rowstart;
 		break;
 	case 1:
-		if (tabcolor == INITR_BLACKTAB) {
+     	if ((tabcolor == INITR_BLACKTAB) || (tabcolor == INITR_MINI160x80)) {
 			writedata_last(MADCTL_MY | MADCTL_MV | MADCTL_RGB);
 		} else {
 			writedata_last(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 		}
-		_height = ST7735_TFTWIDTH;
+		_height = _screenWidth;
 		_width = _screenHeight;
      	_ystart = _colstart;
      	_xstart = _rowstart;
 		break;
 	case 2:
-		if (tabcolor == INITR_BLACKTAB) {
+     	if ((tabcolor == INITR_BLACKTAB) || (tabcolor == INITR_MINI160x80)) {
 			writedata_last(MADCTL_RGB);
 		} else {
 			writedata_last(MADCTL_BGR);
 		}
-		_width  = ST7735_TFTWIDTH;
+		_width  = _screenWidth;
 		_height = _screenHeight;
      	_xstart = _colstart;
      	// hack to make work on a couple different displays
      	_ystart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
 		break;
 	case 3:
-		if (tabcolor == INITR_BLACKTAB) {
+     	if ((tabcolor == INITR_BLACKTAB) || (tabcolor == INITR_MINI160x80)) {
 			writedata_last(MADCTL_MX | MADCTL_MV | MADCTL_RGB);
 		} else {
 			writedata_last(MADCTL_MX | MADCTL_MV | MADCTL_BGR);
 		}
 		_width = _screenHeight;
-		_height = ST7735_TFTWIDTH;
+		_height = _screenWidth;
      	_ystart = _colstart;
      	// hack to make work on a couple different displays
      	_xstart = (_rowstart==0 || _rowstart==32)? 0 : 1;//_rowstart;
@@ -1345,17 +1360,20 @@ void	ST7735_t3::initDMASettings(void)
 	//Serial.println("InitDMASettings");
 	uint8_t dmaTXevent = _spi_hardware->tx_dma_channel;
 	_cbDisplay = _width*_height * 2;	// cache away the size of the display. 
-	uint16_t COUNT_WORDS_WRITE = (_width*_height) / 2;
+
+    uint8_t  cnt_dma_settings = 2;   // how many do we need for this display?
+	uint32_t COUNT_WORDS_WRITE = (_width*_height) / 2;
+	// The 240x320 display requires us to expand to another DMA setting. 
+	if (COUNT_WORDS_WRITE >= 65536) {
+		COUNT_WORDS_WRITE = (_width*_height) / 3;
+		cnt_dma_settings = 3;
+	}
 //	Serial.printf("cbDisplay: %u COUNT_WORDS_WRITE:%d(%x) spi_num:%d\n", _cbDisplay, COUNT_WORDS_WRITE, COUNT_WORDS_WRITE, _spi_num);
 #if defined(__MK66FX1M0__) 
 	// T3.6
-
-	// BUGBUG:: check for -1 as wont work on SPI2 on T3.5
-//	uint16_t *fbtft_start_dma_addr = _pfbtft;
-
-	
 	//Serial.printf("CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, count_words_write);
 	// Now lets setup DMA access to this memory... 
+	_cnt_dma_settings = cnt_dma_settings;	// save away code that needs to update
 	_dmasettings[0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
 	_dmasettings[0].destination(_pkinetisk_spi->PUSHR);
 
@@ -1368,11 +1386,17 @@ void	ST7735_t3::initDMASettings(void)
 	_dmasettings[1].TCD->ATTR_DST = 1;
 	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
 
+	if (cnt_dma_settings == 3) {
+		_dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
+		_dmasettings[2].destination(_pkinetisk_spi->PUSHR);
+		_dmasettings[2].TCD->ATTR_DST = 1;
+		_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);		
+	}
 	// Sort of hack - but wrap around to output the first word again. 
-	_dmasettings[2].sourceBuffer(_pfbtft, 2);
-	_dmasettings[2].destination(_pkinetisk_spi->PUSHR);
-	_dmasettings[2].TCD->ATTR_DST = 1;
-	_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[0]);
+	_dmasettings[cnt_dma_settings].sourceBuffer(_pfbtft, 2);
+	_dmasettings[cnt_dma_settings].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[cnt_dma_settings].TCD->ATTR_DST = 1;
+	_dmasettings[cnt_dma_settings].replaceSettingsOnCompletion(_dmasettings[0]);
 
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
@@ -1389,6 +1413,7 @@ void	ST7735_t3::initDMASettings(void)
 	// Try to do like T3.6 except not kludge for first word...
 	// Serial.println("DMA initDMASettings - before settings");
 	// Serial.printf("  CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, COUNT_WORDS_WRITE);
+	_cnt_dma_settings = cnt_dma_settings;	// save away code that needs to update
 	_dmasettings[0].sourceBuffer(&_pfbtft[0], COUNT_WORDS_WRITE*2);
 	_dmasettings[0].destination(_pimxrt_spi->TDR);
 	_dmasettings[0].TCD->ATTR_DST = 1;
@@ -1397,8 +1422,19 @@ void	ST7735_t3::initDMASettings(void)
 	_dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
 	_dmasettings[1].destination(_pimxrt_spi->TDR);
 	_dmasettings[1].TCD->ATTR_DST = 1;
-	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-	_dmasettings[1].interruptAtCompletion();
+
+	if (cnt_dma_settings == 3) {
+		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+
+		_dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
+		_dmasettings[2].destination(_pimxrt_spi->TDR);
+		_dmasettings[2].TCD->ATTR_DST = 1;
+		_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[0]);		
+		_dmasettings[2].interruptAtCompletion();		
+	} else {
+		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
+		_dmasettings[1].interruptAtCompletion();		
+	}
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
 	// Serial.println("DMA initDMASettings - before dmatx");
@@ -1460,11 +1496,13 @@ void ST7735_t3::dumpDMASettings() {
 	dumpDMA_TCD(&_dmasettings[0]);
 	dumpDMA_TCD(&_dmasettings[1]);
 	dumpDMA_TCD(&_dmasettings[2]);
+	dumpDMA_TCD(&_dmasettings[3]);
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
 	// Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dmatx);
 	dumpDMA_TCD(&_dmasettings[0]);
 	dumpDMA_TCD(&_dmasettings[1]);
+	dumpDMA_TCD(&_dmasettings[2]);
 #else
 	Serial.printf("DMA dump TX:%d RX:%d\n", _dmatx.channel, _dmarx.channel);
 	dumpDMA_TCD(&_dmatx);
@@ -1516,17 +1554,17 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// T3.6
 	//==========================================
 	if (update_cont) {
-		// Try to link in #3 into the chain
-		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
-		_dmasettings[1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
-		_dmasettings[2].interruptAtCompletion();
-		_dmasettings[2].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
+		// Try to link in #3 into the chain (_cnt_dma_settings)
+		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_cnt_dma_settings]);
+		_dmasettings[_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
+		_dmasettings[_cnt_dma_settings].interruptAtCompletion();
+		_dmasettings[_cnt_dma_settings].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
 		_dma_state |= ST77XX_DMA_CONT;
 	} else {
 		// In this case we will only run through once...
-		_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[0]);
-		_dmasettings[1].interruptAtCompletion();
-		_dmasettings[1].disableOnCompletion();
+		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[0]);
+		_dmasettings[_cnt_dma_settings-1].interruptAtCompletion();
+		_dmasettings[_cnt_dma_settings-1].disableOnCompletion();
 		_dma_state &= ~ST77XX_DMA_CONT;
 	}
 
@@ -1562,10 +1600,10 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	if (update_cont) {
 		// Which dmasetting we change depends on which display.  Most will fit in one... 
 		// Don't disable on completion...
-		_dmasettings[1].TCD->CSR &= ~( DMA_TCD_CSR_DREQ);
+		_dmasettings[_cnt_dma_settings-1].TCD->CSR &= ~( DMA_TCD_CSR_DREQ);
 	} else {
 		// In this case we will only run through once...
-		_dmasettings[1].disableOnCompletion();
+		_dmasettings[_cnt_dma_settings-1].disableOnCompletion();
 		_dma_state &= ~ST77XX_DMA_CONT;
 	}
 #ifdef DEBUG_ASYNC_UPDATE
