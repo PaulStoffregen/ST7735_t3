@@ -1483,7 +1483,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	if (!_use_fbtft) return false;
 
 
-	#if defined(__MK64FX512__)  // If T3.5 only allow on SPI...
+	#if defined(__MK64FX512__) || defined(__MK20DX256__)  // If T3.5 only allow on SPI...
 	// The T3.5 DMA to SPI has issues with preserving stuff like we want 16 bit mode
 	// and we want CS to stay on... So hack it.  We will turn off using CS for the CS
 	//	pin.

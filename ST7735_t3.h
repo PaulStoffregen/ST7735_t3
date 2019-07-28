@@ -36,6 +36,14 @@
 #endif
 #endif
 
+// Lets allow the user to define if they want T3.2 to enable frame buffer.
+// it will only work on subset of displays due to memory
+#define ENABLE_ST77XX_FRAMEBUFFER_T32
+#if defined(__MK20DX256__) && defined(ENABLE_ST77XX_FRAMEBUFFER_T32)
+#define ENABLE_ST77XX_FRAMEBUFFER
+#define SCREEN_DMA_NUM_SETTINGS 3 // see if making it a constant value makes difference...
+#endif
+
 #define ST7735_SPICLOCK 24000000
 //#define ST7735_SPICLOCK 16000000
 
@@ -386,7 +394,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   DMASetting   _dmasettings[2];
   DMAChannel   _dmatx;
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
-  #else
+  #elif defined(__MK64FX512__)
   // T3.5 - had issues scatter/gather so do just use channels/interrupts
   // and update and continue
   uint8_t _cspinmask;
@@ -395,6 +403,15 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   DMAChannel   _dmarx;
   uint16_t   _dma_count_remaining;
   uint16_t   _dma_write_size_words;
+  #elif defined(__MK20DX256__)
+  // For first pass maybe emulate T3.5 on SPI...
+  uint8_t _cspinmask;
+  volatile uint8_t *_csport = nullptr;
+  DMAChannel   _dmatx;
+  DMAChannel   _dmarx;
+  uint16_t   _dma_count_remaining;
+  uint16_t   _dma_write_size_words;
+
   #endif  
   static void dmaInterrupt(void);
   static void dmaInterrupt1(void);
