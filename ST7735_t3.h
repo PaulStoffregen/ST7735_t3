@@ -398,7 +398,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   volatile uint8_t *_csport = nullptr;
   DMAChannel   _dmatx;
   DMAChannel   _dmarx;
-  uint16_t   _dma_count_remaining;
+  uint32_t   _dma_count_remaining;
   uint16_t   _dma_write_size_words;
   #elif defined(__MK20DX256__)
   // For first pass maybe emulate T3.5 on SPI...

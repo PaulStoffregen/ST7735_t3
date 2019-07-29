@@ -1361,12 +1361,17 @@ void	ST7735_t3::initDMASettings(void)
 	uint8_t dmaTXevent = _spi_hardware->tx_dma_channel;
 	_cbDisplay = _width*_height * 2;	// cache away the size of the display. 
 
+#if defined(__MK66FX1M0__) ||  defined(__IMXRT1052__) || defined(__IMXRT1062__)
     uint8_t  cnt_dma_settings = 2;   // how many do we need for this display?
+#endif    
 	uint32_t COUNT_WORDS_WRITE = (_width*_height) / 2;
+
 	// The 240x320 display requires us to expand to another DMA setting. 
-	if (COUNT_WORDS_WRITE >= 65536) {
+	if (COUNT_WORDS_WRITE >= 32768) {
 		COUNT_WORDS_WRITE = (_width*_height) / 3;
+#if defined(__MK66FX1M0__) ||  defined(__IMXRT1052__) || defined(__IMXRT1062__)
 		cnt_dma_settings = 3;
+#endif
 	}
 //	Serial.printf("cbDisplay: %u COUNT_WORDS_WRITE:%d(%x) spi_num:%d\n", _cbDisplay, COUNT_WORDS_WRITE, COUNT_WORDS_WRITE, _spi_num);
 #if defined(__MK66FX1M0__) 
@@ -1716,9 +1721,9 @@ void ST7735_t3::endUpdateAsync() {
 	if (_dma_state & ST77XX_DMA_CONT) {
 		_dma_state &= ~ST77XX_DMA_CONT; // Turn of the continueous mode
 #if defined(__MK66FX1M0__) 
-		_dmasettings[2].disableOnCompletion();
+		_dmasettings[_cnt_dma_settings].disableOnCompletion();
 #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
-		_dmasettings[1].disableOnCompletion();
+		_dmasettings[_cnt_dma_settings-1].disableOnCompletion();
 #endif
 	}
 	#endif
