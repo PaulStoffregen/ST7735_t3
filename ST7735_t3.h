@@ -185,7 +185,7 @@ class ST7735_t3 : public Adafruit_GFX {
 
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
-  enum {ST77XX_DMA_INIT=0x01, ST77XX_DMA_CONT=0x02, ST77XX_DMA_ACTIVE=0x80};
+  enum {ST77XX_DMA_INIT=0x01, ST77XX_DMA_CONT=0x02, ST77XX_DMA_FINISH=0x04,ST77XX_DMA_ACTIVE=0x80};
 
   // added support to use optional Frame buffer
   void  setFrameBuffer(uint16_t *frame_buffer);
@@ -371,7 +371,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint16_t  *_pfbtft;           // Optional Frame buffer 
   uint8_t   _use_fbtft;         // Are we in frame buffer mode?
   uint16_t  *_we_allocated_buffer;      // We allocated the buffer; 
-  uint32_t  _cbDisplay;         // How big is the display in bytes...
+  uint32_t  _count_pixels;       // How big is the display in total pixels...
 
   // Add DMA support. 
   // Note: We have enough memory to have more than one, so could have multiple active devices (one per SPI BUS)
@@ -386,11 +386,19 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   DMAChannel   _dmatx;
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
   #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
-  // Going to try it similar to T4.
-  DMASetting   _dmasettings[3];
+  // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
+  // as to move it out of the memory that is cached...
+  DMASetting   _dmasettings[2];
   DMAChannel   _dmatx;
-  uint8_t      _cnt_dma_settings;   // how many do we need for this display?
+  volatile    uint32_t _dma_pixel_index = 0;
+  volatile uint16_t _dma_sub_frame_count = 0; // Can return a frame count...
+  uint16_t          _dma_buffer_size;   // the actual size we are using <= DMA_BUFFER_SIZE;
+  uint16_t          _dma_cnt_sub_frames_per_frame;  
+  static const uint16_t    DMA_BUFFER_SIZE = 512;
+  uint16_t          _dma_buffer1[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint16_t          _dma_buffer2[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
+
   #elif defined(__MK64FX512__)
   // T3.5 - had issues scatter/gather so do just use channels/interrupts
   // and update and continue
