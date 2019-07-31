@@ -82,6 +82,9 @@ void setup(void) {
   // Or use this initializer (uncomment) if you're using a 1.44" TFT (128x128)
   //tft.initR(INITR_144GREENTAB);
 
+  // Or use this initializer (uncomment) if you're using a .96" TFT(160x80)
+  //tft.initR(INITR_MINI160x80);
+
   // Or use this initializer (uncomment) for Some 1.44" displays use different memory offsets
   // Try it if yours is not working properly
   // May need to tweek the offsets
