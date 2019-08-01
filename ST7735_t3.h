@@ -23,8 +23,23 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 
+#ifndef DISABLE_ST77XX_FRAMEBUFFER
+#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
+#define ENABLE_ST77XX_FRAMEBUFFER
+#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
+#define ENABLE_ST77XX_FRAMEBUFFER
+#endif
+// Lets allow the user to define if they want T3.2 to enable frame buffer.
+// it will only work on subset of displays due to memory
+#define ENABLE_ST77XX_FRAMEBUFFER_T32
+#if defined(__MK20DX256__) && defined(ENABLE_ST77XX_FRAMEBUFFER_T32)
+#define ENABLE_ST77XX_FRAMEBUFFER
+#endif
+#endif
+
 
 #define ST7735_SPICLOCK 24000000
+//#define ST7735_SPICLOCK 16000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
@@ -36,12 +51,16 @@
 #define INITR_18BLACKTAB    INITR_BLACKTAB
 #define INITR_144GREENTAB   0x1
 #define INITR_144GREENTAB_OFFSET   0x4
+#define INITR_MINI160x80  0x05
+
+#define INIT_ST7789_TABCOLOR 42  // Not used except as a indicator to the code... 
 
 #define ST7735_TFTWIDTH  128
+#define ST7735_TFTWIDTH_80     80 // for mini
 // for 1.44" display
 #define ST7735_TFTHEIGHT_144 128
-// for 1.8" display
-#define ST7735_TFTHEIGHT_18  160
+// for 1.8" display and mini
+#define ST7735_TFTHEIGHT_160  160 // for 1.8" and mini display
 
 #define ST7735_NOP     0x00
 #define ST7735_SWRESET 0x01
@@ -121,7 +140,7 @@ class ST7735_t3 : public Adafruit_GFX {
 
   void     initB(void),                             // for ST7735B displays
            initR(uint8_t options = INITR_GREENTAB), // for ST7735R
-           setAddrWindow(uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1),
+           setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1),
            pushColor(uint16_t color),
            fillScreen(uint16_t color),
            drawPixel(int16_t x, int16_t y, uint16_t color),
@@ -130,9 +149,9 @@ class ST7735_t3 : public Adafruit_GFX {
            fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
   virtual void setRotation(uint8_t r);
   void     invertDisplay(boolean i);
-  void     setRowColStart(uint8_t x, uint8_t y);
-  uint8_t  rowStart() {return _rowstart;}
-  uint8_t  colStart() {return _colstart;}
+  void     setRowColStart(uint16_t x, uint16_t y);
+  uint16_t  rowStart() {return _rowstart;}
+  uint16_t  colStart() {return _colstart;}
 
   void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     __attribute__((always_inline)) {
@@ -145,6 +164,7 @@ class ST7735_t3 : public Adafruit_GFX {
   }
 
   void sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
+
 
 
   // Pass 8-bit (each) R,G,B, get back 16-bit packed color
@@ -160,6 +180,42 @@ class ST7735_t3 : public Adafruit_GFX {
   uint32_t readcommand32(uint8_t);
   void     dummyclock(void);
   */
+  // Useful methods added from ili9341_t3 
+  void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
+
+// Frame buffer support
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+  enum {ST77XX_DMA_INIT=0x01, ST77XX_DMA_CONT=0x02, ST77XX_DMA_FINISH=0x04,ST77XX_DMA_ACTIVE=0x80};
+
+  // added support to use optional Frame buffer
+  void  setFrameBuffer(uint16_t *frame_buffer);
+  uint8_t useFrameBuffer(boolean b);    // use the frame buffer?  First call will allocate
+  void  freeFrameBuffer(void);      // explicit call to release the buffer
+  void  updateScreen(void);       // call to say update the screen now. 
+  bool  updateScreenAsync(bool update_cont = false);  // call to say update the screen optinoally turn into continuous mode. 
+  void  waitUpdateAsyncComplete(void);
+  void  endUpdateAsync();      // Turn of the continueous mode fla
+  void  dumpDMASettings();
+  uint16_t *getFrameBuffer() {return _pfbtft;}
+  uint32_t frameCount() {return _dma_frame_count; }
+  boolean asyncUpdateActive(void)  {return (_dma_state & ST77XX_DMA_ACTIVE);}
+  void  initDMASettings(void);
+  #else
+  // added support to use optional Frame buffer
+  void  setFrameBuffer(uint16_t *frame_buffer) {return;}
+  uint8_t useFrameBuffer(boolean b) {return 0;};    // use the frame buffer?  First call will allocate
+  void  freeFrameBuffer(void) {return;}      // explicit call to release the buffer
+  void  updateScreen(void) {return;}       // call to say update the screen now. 
+  bool  updateScreenAsync(bool update_cont = false) {return false;}  // call to say update the screen optinoally turn into continuous mode. 
+  void  waitUpdateAsyncComplete(void) {return;}
+  void  endUpdateAsync() {return;}      // Turn of the continueous mode fla
+  void  dumpDMASettings() {return;}
+
+  uint32_t frameCount() {return 0; }
+  uint16_t *getFrameBuffer() {return NULL;}
+  boolean asyncUpdateActive(void)  {return false;}
+  #endif
+
 
  protected:
   uint8_t  tabcolor;
@@ -168,6 +224,7 @@ class ST7735_t3 : public Adafruit_GFX {
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
+           writedata_last(uint8_t d),
            writedata16(uint16_t d),
            writedata16_last(uint16_t d),
            commandList(const uint8_t *addr),
@@ -177,7 +234,8 @@ class ST7735_t3 : public Adafruit_GFX {
   boolean  hwSPI;
 
 
-  uint8_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight;
+  uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
+  SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk;
   uint8_t pcs_data, pcs_command;
@@ -185,13 +243,15 @@ class ST7735_t3 : public Adafruit_GFX {
   volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
 
   SPIClass *_pspi = nullptr;
+  uint8_t   _spi_num;          // Which buss is this spi on? 
   KINETISK_SPI_t *_pkinetisk_spi;
+  SPIClass::SPI_Hardware_t *_spi_hardware;
   void waitTransmitComplete(void);
   void waitTransmitComplete(uint32_t mcr);
   uint32_t _fifo_full_test;
 
   inline void beginSPITransaction() {
-    if (_pspi) _pspi->beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
+    if (_pspi) _pspi->beginTransaction(_spiSettings);
     if (cspin) *cspin = 0;
   }
 
@@ -205,8 +265,9 @@ class ST7735_t3 : public Adafruit_GFX {
 #endif
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
-  SPISettings _spiSettings;
+  uint8_t   _spi_num;          // Which buss is this spi on? 
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
+  SPIClass::SPI_Hardware_t *_spi_hardware;
   uint8_t _pending_rx_count = 0;
   uint32_t _spi_tcr_current;
 
@@ -241,11 +302,11 @@ class ST7735_t3 : public Adafruit_GFX {
 
   inline void beginSPITransaction() {
     if (hwSPI) _pspi->beginTransaction(_spiSettings);
-    if (_cs != 0xff)DIRECT_WRITE_LOW(_csport, _cspinmask);
+    if (_csport)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
   inline void endSPITransaction() {
-    DIRECT_WRITE_HIGH(_csport, _cspinmask);
+    if (_csport)DIRECT_WRITE_HIGH(_csport, _cspinmask);
     if (hwSPI) _pspi->endTransaction();  
   }
 
@@ -294,17 +355,74 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
   inline void beginSPITransaction() {
-    if (hwSPI) SPI.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-    else if (hwSPI1) SPI1.beginTransaction(SPISettings(ST7735_SPICLOCK, MSBFIRST, SPI_MODE0));
-    *csport &= ~cspinmask;
+    if (hwSPI) SPI.beginTransaction(_spiSettings);
+    else if (hwSPI1) SPI1.beginTransaction(_spiSettings);
+    if (csport)*csport &= ~cspinmask;
   }
 
-  inline void ST7735_t3::endSPITransaction() {
-    *csport |= cspinmask;
+  inline void endSPITransaction() {
+    if (csport) *csport |= cspinmask;
     if (hwSPI) SPI.endTransaction(); 
     else if (hwSPI1)  SPI1.endTransaction();  
   }
 #endif 
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+    // Add support for optional frame buffer
+  uint16_t  *_pfbtft;           // Optional Frame buffer 
+  uint8_t   _use_fbtft;         // Are we in frame buffer mode?
+  uint16_t  *_we_allocated_buffer;      // We allocated the buffer; 
+  uint32_t  _count_pixels;       // How big is the display in total pixels...
+
+  // Add DMA support. 
+  // Note: We have enough memory to have more than one, so could have multiple active devices (one per SPI BUS)
+  //     All three devices have 3 SPI buss so hard coded
+  static  ST7735_t3     *_dmaActiveDisplay[3];  // Use pointer to this as a way to get back to object...
+  volatile uint8_t      _dma_state;         // DMA status
+  volatile uint32_t     _dma_frame_count;   // Can return a frame count...
+
+  #if defined(__MK66FX1M0__) 
+  // T3.6 use Scatter/gather with chain to do transfer
+  DMASetting   _dmasettings[4];
+  DMAChannel   _dmatx;
+  uint8_t      _cnt_dma_settings;   // how many do we need for this display?
+  #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+  // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
+  // as to move it out of the memory that is cached...
+  DMASetting   _dmasettings[2];
+  DMAChannel   _dmatx;
+  volatile    uint32_t _dma_pixel_index = 0;
+  volatile uint16_t _dma_sub_frame_count = 0; // Can return a frame count...
+  uint16_t          _dma_buffer_size;   // the actual size we are using <= DMA_BUFFER_SIZE;
+  uint16_t          _dma_cnt_sub_frames_per_frame;  
+  static const uint16_t    DMA_BUFFER_SIZE = 512;
+  uint16_t          _dma_buffer1[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint16_t          _dma_buffer2[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint32_t      _spi_fcr_save;    // save away previous FCR register value
+
+  #elif defined(__MK64FX512__)
+  // T3.5 - had issues scatter/gather so do just use channels/interrupts
+  // and update and continue
+  uint8_t _cspinmask;
+  volatile uint8_t *_csport = nullptr;
+  DMAChannel   _dmatx;
+  DMAChannel   _dmarx;
+  uint32_t   _dma_count_remaining;
+  uint16_t   _dma_write_size_words;
+  #elif defined(__MK20DX256__)
+  // For first pass maybe emulate T3.5 on SPI...
+  uint8_t _cspinmask;
+  volatile uint8_t *_csport = nullptr;
+  DMAChannel   _dmatx;
+  DMAChannel   _dmarx;
+  uint16_t   _dma_count_remaining;
+  uint16_t   _dma_write_size_words;
+
+  #endif  
+  static void dmaInterrupt(void);
+  static void dmaInterrupt1(void);
+  static void dmaInterrupt2(void);
+  void process_dma_interrupt(void);
+#endif
 
 };
 
