@@ -26,7 +26,7 @@
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 #define ENABLE_ST77XX_FRAMEBUFFER
-#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
+#elif defined(__IMXRT1062__)
 #define ENABLE_ST77XX_FRAMEBUFFER
 #endif
 // Lets allow the user to define if they want T3.2 to enable frame buffer.
@@ -129,6 +129,19 @@
 #define ST77XX_YELLOW     0xFFE0
 #define ST77XX_ORANGE     0xFC00
 
+
+#if defined(__IMXRT1062__)  // Teensy 4.x
+// Also define these in lower memory so as to make sure they are not cached...
+// try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
+// as to move it out of the memory that is cached...
+#define ST77XX_DMA_BUFFER_SIZE 512
+typedef struct {
+  DMASetting      _dmasettings[2];
+  DMAChannel      _dmatx;
+  uint16_t        _dma_buffer1[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint16_t        _dma_buffer2[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));  
+} ST7735DMA_Data;
+#endif
 
 
 class ST7735_t3 : public Adafruit_GFX {
@@ -263,7 +276,7 @@ class ST7735_t3 : public Adafruit_GFX {
 
 
 #endif
-#if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+#if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
   uint8_t   _spi_num;          // Which buss is this spi on? 
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
@@ -385,18 +398,14 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   DMASetting   _dmasettings[4];
   DMAChannel   _dmatx;
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
-  #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+  #elif defined(__IMXRT1062__)  // Teensy 4.x
+  static ST7735DMA_Data _dma_data[3];   // one structure for each SPI buss... 
   // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
   // as to move it out of the memory that is cached...
-  DMASetting   _dmasettings[2];
-  DMAChannel   _dmatx;
   volatile    uint32_t _dma_pixel_index = 0;
   volatile uint16_t _dma_sub_frame_count = 0; // Can return a frame count...
   uint16_t          _dma_buffer_size;   // the actual size we are using <= DMA_BUFFER_SIZE;
   uint16_t          _dma_cnt_sub_frames_per_frame;  
-  static const uint16_t    DMA_BUFFER_SIZE = 512;
-  uint16_t          _dma_buffer1[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
-  uint16_t          _dma_buffer2[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
 
   #elif defined(__MK64FX512__)
