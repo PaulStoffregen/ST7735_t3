@@ -76,6 +76,12 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
 	_rot = 0xff;
 	hwSPI = true;
 	_sid  = _sclk = (uint8_t)-1;
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+    _pfbtft = NULL;	
+    _use_fbtft = 0;						// Are we in frame buffer mode?
+	_we_allocated_buffer = NULL;
+	_dma_state = 0;
+    #endif
 	_screenHeight = ST7735_TFTHEIGHT_160;
 	_screenWidth = ST7735_TFTWIDTH;	
 }
@@ -866,15 +872,20 @@ void ST7735_t3::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1
 	beginSPITransaction();
 	setAddr(x0, y0, x1, y1);
 	writecommand(ST7735_RAMWR); // write to RAM
+	// The setAddrWindow/pushColor will only work if SPI is kept active during this loop...
 	endSPITransaction();
 }
 
 
-void ST7735_t3::pushColor(uint16_t color)
+void ST7735_t3::pushColor(uint16_t color, boolean last_pixel)
 {
-	beginSPITransaction();
-	writedata16_last(color);
-	endSPITransaction();
+	//beginSPITransaction();
+	if (last_pixel) {
+		writedata16_last(color);
+		endSPITransaction();
+	} else {
+		writedata16(color);
+	}
 }
 
 void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
@@ -1215,11 +1226,11 @@ void ST7735_t3::process_dma_interrupt(void) {
 			_pimxrt_spi->SR = 0x3f00;	// clear out all of the other status...
 
 
-			maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
+//			maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
 			// Serial.printf("Output NOP (SR %x CR %x FSR %x FCR %x %x TCR:%x)\n", _pimxrt_spi->SR, _pimxrt_spi->CR, _pimxrt_spi->FSR, 
 			//	_pimxrt_spi->FCR, _spi_fcr_save, _pimxrt_spi->TCR);
 			_pending_rx_count = 0;	// Make sure count is zero
-			writecommand_last(ST7735_NOP);
+//			writecommand_last(ST7735_NOP);
 
 			// Serial.println("Do End transaction");
 			endSPITransaction();
