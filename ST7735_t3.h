@@ -244,7 +244,7 @@ class ST7735_t3 : public Adafruit_GFX {
            commonInit(const uint8_t *cmdList, uint8_t mode=SPI_MODE0);
 //uint8_t  spiread(void);
 
-  boolean  hwSPI;
+  boolean  hwSPI=true;
 
 
   uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
@@ -256,12 +256,12 @@ class ST7735_t3 : public Adafruit_GFX {
   volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
 
   SPIClass *_pspi = nullptr;
-  uint8_t   _spi_num;          // Which buss is this spi on? 
-  KINETISK_SPI_t *_pkinetisk_spi;
-  SPIClass::SPI_Hardware_t *_spi_hardware;
+  uint8_t   _spi_num = 0;          // Which buss is this spi on? 
+  KINETISK_SPI_t *_pkinetisk_spi = nullptr;
+  SPIClass::SPI_Hardware_t *_spi_hardware = nullptr;
   void waitTransmitComplete(void);
   void waitTransmitComplete(uint32_t mcr);
-  uint32_t _fifo_full_test;
+  uint32_t _fifo_full_test = 0;
 
   inline void beginSPITransaction() {
     if (_pspi) _pspi->beginTransaction(_spiSettings);
@@ -278,11 +278,11 @@ class ST7735_t3 : public Adafruit_GFX {
 #endif
 #if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
-  uint8_t   _spi_num;          // Which buss is this spi on? 
+  uint8_t   _spi_num = 0;          // Which buss is this spi on? 
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
   SPIClass::SPI_Hardware_t *_spi_hardware;
   uint8_t _pending_rx_count = 0;
-  uint32_t _spi_tcr_current;
+  uint32_t _spi_tcr_current = 0; 
 
 
   void DIRECT_WRITE_LOW(volatile uint32_t * base, uint32_t mask)  __attribute__((always_inline)) {

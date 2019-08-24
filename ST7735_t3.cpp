@@ -46,15 +46,9 @@ ST7735DMA_Data ST7735_t3::_dma_data[3];   // one structure for each SPI buss...
 
 // Constructor when using software SPI.  All output pins are configurable.
 ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t rst) :
- Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160)
+ 	Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160), hwSPI(false),
+	_cs(cs), _rs(rs),  _rst(rst), _sid(sid), _sclk(sclk)
 {
-	_cs   = cs;
-	_rs   = rs;
-	_sid  = sid;
-	_sclk = sclk;
-	_rst  = rst;
-	_rot = 0xff;
-	hwSPI = false;
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
     _pfbtft = NULL;	
     _use_fbtft = 0;						// Are we in frame buffer mode?
@@ -69,13 +63,9 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
 // specific to each board type (e.g. 11,13 for Uno, 51,52 for Mega, etc.)
 ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst) :
-  Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160) {
-	_cs   = cs;
-	_rs   = rs;
-	_rst  = rst;
-	_rot = 0xff;
-	hwSPI = true;
-	_sid  = _sclk = (uint8_t)-1;
+	Adafruit_GFX(ST7735_TFTWIDTH, ST7735_TFTHEIGHT_160), hwSPI(true),
+	_cs(cs), _rs(rs),  _rst(rst), _sid((uint8_t)-1), _sclk((uint8_t)-1)
+{
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
     _pfbtft = NULL;	
     _use_fbtft = 0;						// Are we in frame buffer mode?
