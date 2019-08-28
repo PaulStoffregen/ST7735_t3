@@ -300,7 +300,7 @@ class ST7735_t3 : public Print
 			updateDisplayClip();
 		}
 	void setClipRect() {
-			 _clipx1 = 0; _clipy1 = 0; _clipx2 = _screenWidth; _clipy2 = _screenHeight; 
+			 _clipx1 = 0; _clipy1 = 0; _clipx2 = _width; _clipy2 = _height; 
 			//if (Serial) Serial.printf("clear clip Rect\n");
 			 updateDisplayClip(); 
 		}	
@@ -616,12 +616,15 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 	void HLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
-	  	drawFastHLine(x, y, w, color);
+
+	  		drawFastHLine(x, y, w, color);
 	  }
+	  
 	void VLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
-	  	drawFastVLine(x, y, h, color);
+	  		drawFastVLine(x, y, h, color);
+
 	  }
 	  
 	/**
