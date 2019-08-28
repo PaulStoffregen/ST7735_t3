@@ -24,7 +24,7 @@ class ST7789_t3 : public ST7735_t3 {
 
  public:
 
-  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1);
+  ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1, uint8_t miso = -1);
   ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1);
 
   virtual void  setRotation(uint8_t m);

@@ -21,12 +21,12 @@
 
 #include "Arduino.h"
 #include <SPI.h>
-#include <Adafruit_GFX.h>
+//#include <Adafruit_GFX.h>
 
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 #define ENABLE_ST77XX_FRAMEBUFFER
-#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)
+#elif defined(__IMXRT1062__)
 #define ENABLE_ST77XX_FRAMEBUFFER
 #endif
 // Lets allow the user to define if they want T3.2 to enable frame buffer.
@@ -40,6 +40,7 @@
 
 #define ST7735_SPICLOCK 24000000
 //#define ST7735_SPICLOCK 16000000
+#define ST7735_SPICLOCK_READ  10000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
@@ -129,19 +130,76 @@
 #define ST77XX_YELLOW     0xFFE0
 #define ST77XX_ORANGE     0xFC00
 
+#ifndef swap
+#define swap(a, b) { typeof(a) t = a; a = b; b = t; }
+#endif
+
+#if defined(__IMXRT1062__)  // Teensy 4.x
+// Also define these in lower memory so as to make sure they are not cached...
+// try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
+// as to move it out of the memory that is cached...
+#define ST77XX_DMA_BUFFER_SIZE 512
+typedef struct {
+  DMASetting      _dmasettings[2];
+  DMAChannel      _dmatx;
+  uint16_t        _dma_buffer1[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint16_t        _dma_buffer2[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));  
+} ST7735DMA_Data;
+#endif
+
+#define CL(_r,_g,_b) ((((_r)&0xF8)<<8)|(((_g)&0xFC)<<3)|((_b)>>3))
 
 
-class ST7735_t3 : public Adafruit_GFX {
+typedef struct {
+	const unsigned char *index;
+	const unsigned char *unicode;
+	const unsigned char *data;
+	unsigned char version;
+	unsigned char reserved;
+	unsigned char index1_first;
+	unsigned char index1_last;
+	unsigned char index2_first;
+	unsigned char index2_last;
+	unsigned char bits_index;
+	unsigned char bits_width;
+	unsigned char bits_height;
+	unsigned char bits_xoffset;
+	unsigned char bits_yoffset;
+	unsigned char bits_delta;
+	unsigned char line_space;
+	unsigned char cap_height;
+} ST7735_t3_font_t;
+
+//These enumerate the text plotting alignment (reference datum point)
+#define TL_DATUM 0 // Top left (default)
+#define TC_DATUM 1 // Top centre
+#define TR_DATUM 2 // Top right
+#define ML_DATUM 3 // Middle left
+#define CL_DATUM 3 // Centre left, same as above
+#define MC_DATUM 4 // Middle centre
+#define CC_DATUM 4 // Centre centre, same as above
+#define MR_DATUM 5 // Middle right
+#define CR_DATUM 5 // Centre right, same as above
+#define BL_DATUM 6 // Bottom left
+#define BC_DATUM 7 // Bottom centre
+#define BR_DATUM 8 // Bottom right
+//#define L_BASELINE  9 // Left character baseline (Line the 'A' character would sit on)
+//#define C_BASELINE 10 // Centre character baseline
+//#define R_BASELINE 11 // Right character baseline
+
+
+class ST7735_t3 : public Print
+{
 
  public:
 
-  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1);
+  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1, uint8_t miso = -1);
   ST7735_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1);
 
   void     initB(void),                             // for ST7735B displays
            initR(uint8_t options = INITR_GREENTAB), // for ST7735R
            setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1),
-           pushColor(uint16_t color),
+           pushColor(uint16_t color, boolean last_pixel=false),
            fillScreen(uint16_t color),
            drawPixel(int16_t x, int16_t y, uint16_t color),
            drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color),
@@ -163,6 +221,91 @@ class ST7735_t3 : public Adafruit_GFX {
         writedata16(y1+_ystart);   // YEND
   }
 
+  ////
+  	// from Adafruit_GFX.h
+	int16_t width(void) const { return _screenWidth; };
+	int16_t height(void) const { return _screenHeight; }
+	uint8_t getRotation(void);
+	
+	void drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
+	void drawCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color);
+	void fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
+	void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, uint16_t color);
+	void drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
+	void fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
+	void drawRoundRect(int16_t x0, int16_t y0, int16_t w, int16_t h, int16_t radius, uint16_t color);
+	void fillRoundRect(int16_t x0, int16_t y0, int16_t w, int16_t h, int16_t radius, uint16_t color);
+	void drawBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color);
+	void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
+	void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+	void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
+	
+	void setCursor(int16_t x, int16_t y);
+    void getCursor(int16_t *x, int16_t *y);
+	void setTextColor(uint16_t c);
+	void setTextColor(uint16_t c, uint16_t bg);
+	void setTextSize(uint8_t s);
+	uint8_t getTextSize();
+	void setTextWrap(boolean w);
+	boolean getTextWrap();
+	
+	//////
+	virtual size_t write(uint8_t);		
+	int16_t getCursorX(void) const { return cursor_x; }
+	int16_t getCursorY(void) const { return cursor_y; }
+	void setFont(const ST7735_t3_font_t &f);
+	void setFont() { font = NULL; }
+	void setFontAdafruit(void) { font = NULL; }
+	void drawFontChar(unsigned int c);
+	int16_t strPixelLen(char * str);
+	
+	// added support for drawing strings/numbers/floats with centering
+	// modified from tft_ili9341_ESP github library
+	// Handle numbers
+	int16_t  drawNumber(long long_num,int poX, int poY);
+	int16_t  drawFloat(float floatNumber,int decimal,int poX, int poY);   
+	// Handle char arrays
+	int16_t drawString(const String& string, int poX, int poY);
+	int16_t drawString1(char string[], int16_t len, int poX, int poY);
+
+	void setTextDatum(uint8_t datum);
+	
+	// added support for scrolling text area
+	// https://github.com/vitormhenrique/ILI9341_t3
+	// Discussion regarding this optimized version:
+    //http://forum.pjrc.com/threads/26305-Highly-optimized-ILI9341-%28320x240-TFT-color-display%29-library
+	//	
+	void setScrollTextArea(int16_t x, int16_t y, int16_t w, int16_t h);
+	void setScrollBackgroundColor(uint16_t color);
+	void enableScroll(void);
+	void disableScroll(void);
+	void scrollTextArea(uint8_t scrollSize);
+	void resetScrollBackgroundColor(uint16_t color);
+
+	// setOrigin sets an offset in display pixels where drawing to (0,0) will appear
+	// for example: setOrigin(10,10); drawPixel(5,5); will cause a pixel to be drawn at hardware pixel (15,15)
+	void setOrigin(int16_t x = 0, int16_t y = 0) { 
+		_originx = x; _originy = y; 
+		//if (Serial) Serial.printf("Set Origin %d %d\n", x, y);
+		updateDisplayClip();
+	}
+	void getOrigin(int16_t* x, int16_t* y) { *x = _originx; *y = _originy; }
+
+	// setClipRect() sets a clipping rectangle (relative to any set origin) for drawing to be limited to.
+	// Drawing is also restricted to the bounds of the display
+
+	void setClipRect(int16_t x1, int16_t y1, int16_t w, int16_t h) 
+		{ _clipx1 = x1; _clipy1 = y1; _clipx2 = x1+w; _clipy2 = y1+h; 
+			//if (Serial) Serial.printf("Set clip Rect %d %d %d %d\n", x1, y1, w, h);
+			updateDisplayClip();
+		}
+	void setClipRect() {
+			 _clipx1 = 0; _clipy1 = 0; _clipx2 = _screenWidth; _clipy2 = _screenHeight; 
+			//if (Serial) Serial.printf("clear clip Rect\n");
+			 updateDisplayClip(); 
+		}	
+////
+	
   void sendCommand(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
 
 
@@ -181,6 +324,9 @@ class ST7735_t3 : public Adafruit_GFX {
   void     dummyclock(void);
   */
   // Useful methods added from ili9341_t3 
+	// Added functions to read pixel data...
+	uint16_t readPixel(int16_t x, int16_t y);
+	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors);
   void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
 
 // Frame buffer support
@@ -232,12 +378,58 @@ class ST7735_t3 : public Adafruit_GFX {
 //uint8_t  spiread(void);
 
   boolean  hwSPI;
+  ////
+  	int16_t  cursor_x, cursor_y;
+	int16_t  _clipx1, _clipy1, _clipx2, _clipy2;
+	int16_t  _originx, _originy;
+	int16_t  _displayclipx1, _displayclipy1, _displayclipx2, _displayclipy2;
+	bool _invisible = false; 
+	bool _standard = true; // no bounding rectangle or origin set. 
+
+	inline void updateDisplayClip() {
+		_displayclipx1 = max(0,min(_clipx1+_originx,width()));
+		_displayclipx2 = max(0,min(_clipx2+_originx,width()));
+
+		_displayclipy1 = max(0,min(_clipy1+_originy,height()));
+		_displayclipy2 = max(0,min(_clipy2+_originy,height()));
+		_invisible = (_displayclipx1 == _displayclipx2 || _displayclipy1 == _displayclipy2);
+		_standard =  (_displayclipx1 == 0) && (_displayclipx2 == _width) && (_displayclipy1 == 0) && (_displayclipy2 == _height);
+		if (Serial) {
+			//Serial.printf("UDC (%d %d)-(%d %d) %d %d\n", _displayclipx1, _displayclipy1, _displayclipx2, 
+			//	_displayclipy2, _invisible, _standard);
+
+		}
+	}
+	
+	int16_t _width, _height;
+	int16_t scroll_x, scroll_y, scroll_width, scroll_height;
+	boolean scrollEnable,isWritingScrollArea; // If set, 'wrap' text at right edge of display
+
+	uint16_t textcolor, textbgcolor, scrollbgcolor;
+	uint32_t textcolorPrexpanded, textbgcolorPrexpanded;
+	uint8_t textsize, rotation, textdatum;
+	boolean wrap; // If set, 'wrap' text at right edge of display
+	const ST7735_t3_font_t *font;
+	// Anti-aliased font support
+	uint8_t fontbpp = 1;
+	uint8_t fontbppindex = 0;
+	uint8_t fontbppmask = 1;
+	uint8_t fontppb = 8;
+	uint8_t* fontalphalut;
+	float fontalphamx = 1;
+	
+	uint32_t padX;
+	
+	void drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32_t x, int32_t y, uint32_t repeat);
+	void drawFontPixel( uint8_t alpha, uint32_t x, uint32_t y );
+	uint32_t fetchpixel(const uint8_t *p, uint32_t index, uint32_t x);
 
 
   uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
+  
   SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
-  uint8_t  _cs, _rs, _rst, _sid, _sclk;
+  uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
   uint8_t pcs_data, pcs_command;
   uint32_t ctar;
   volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
@@ -250,8 +442,8 @@ class ST7735_t3 : public Adafruit_GFX {
   void waitTransmitComplete(uint32_t mcr);
   uint32_t _fifo_full_test;
 
-  inline void beginSPITransaction() {
-    if (_pspi) _pspi->beginTransaction(_spiSettings);
+  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
+    if (_pspi) _pspi->beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
     if (cspin) *cspin = 0;
   }
 
@@ -263,7 +455,7 @@ class ST7735_t3 : public Adafruit_GFX {
 
 
 #endif
-#if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+#if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
   uint8_t   _spi_num;          // Which buss is this spi on? 
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
@@ -300,8 +492,8 @@ class ST7735_t3 : public Adafruit_GFX {
     }
   }
 
-  inline void beginSPITransaction() {
-    if (hwSPI) _pspi->beginTransaction(_spiSettings);
+  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
+    if (hwSPI) _pspi->beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
     if (_csport)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
@@ -335,7 +527,7 @@ class ST7735_t3 : public Adafruit_GFX {
 }
 
 
-  uint8_t  _cs, _rs, _rst, _sid, _sclk;
+  uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
 
   uint32_t _cspinmask;
   volatile uint32_t *_csport;
@@ -354,9 +546,9 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
-  inline void beginSPITransaction() {
-    if (hwSPI) SPI.beginTransaction(_spiSettings);
-    else if (hwSPI1) SPI1.beginTransaction(_spiSettings);
+  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
+    if (hwSPI) SPI.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
+    else if (hwSPI1) SPI1.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
     if (csport)*csport &= ~cspinmask;
   }
 
@@ -366,6 +558,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
     else if (hwSPI1)  SPI1.endTransaction();  
   }
 #endif 
+
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
     // Add support for optional frame buffer
   uint16_t  *_pfbtft;           // Optional Frame buffer 
@@ -385,18 +578,14 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   DMASetting   _dmasettings[4];
   DMAChannel   _dmatx;
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
-  #elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
+  #elif defined(__IMXRT1062__)  // Teensy 4.x
+  static ST7735DMA_Data _dma_data[3];   // one structure for each SPI buss... 
   // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
   // as to move it out of the memory that is cached...
-  DMASetting   _dmasettings[2];
-  DMAChannel   _dmatx;
   volatile    uint32_t _dma_pixel_index = 0;
   volatile uint16_t _dma_sub_frame_count = 0; // Can return a frame count...
   uint16_t          _dma_buffer_size;   // the actual size we are using <= DMA_BUFFER_SIZE;
   uint16_t          _dma_cnt_sub_frames_per_frame;  
-  static const uint16_t    DMA_BUFFER_SIZE = 512;
-  uint16_t          _dma_buffer1[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
-  uint16_t          _dma_buffer2[DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
 
   #elif defined(__MK64FX512__)
@@ -424,6 +613,97 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   void process_dma_interrupt(void);
 #endif
 
+	void HLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+	  __attribute__((always_inline)) 
+	  {
+	  	drawFastHLine(x, y, w, color);
+	  }
+	void VLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+	  __attribute__((always_inline)) 
+	  {
+	  	drawFastVLine(x, y, h, color);
+	  }
+	  
+	/**
+	 * Found in a pull request for the Adafruit framebuffer library. Clever!
+	 * https://github.com/tricorderproject/arducordermini/pull/1/files#diff-d22a481ade4dbb4e41acc4d7c77f683d
+	 * Converts  0000000000000000rrrrrggggggbbbbb
+	 *     into  00000gggggg00000rrrrr000000bbbbb
+	 * with mask 00000111111000001111100000011111
+	 * This is useful because it makes space for a parallel fixed-point multiply
+	 * This implements the linear interpolation formula: result = bg * (1.0 - alpha) + fg * alpha
+	 * This can be factorized into: result = bg + (fg - bg) * alpha
+	 * alpha is in Q1.5 format, so 0.0 is represented by 0, and 1.0 is represented by 32
+	 * @param	fg		Color to draw in RGB565 (16bit)
+	 * @param	bg		Color to draw over in RGB565 (16bit)
+	 * @param	alpha	Alpha in range 0-255
+	 **/
+	uint16_t alphaBlendRGB565( uint32_t fg, uint32_t bg, uint8_t alpha )
+	 __attribute__((always_inline)) {
+	 	alpha = ( alpha + 4 ) >> 3; // from 0-255 to 0-31
+		bg = (bg | (bg << 16)) & 0b00000111111000001111100000011111;
+		fg = (fg | (fg << 16)) & 0b00000111111000001111100000011111;
+		uint32_t result = ((((fg - bg) * alpha) >> 5) + bg) & 0b00000111111000001111100000011111;
+		return (uint16_t)((result >> 16) | result); // contract result
+	}
+	/**
+	 * Same as above, but fg and bg are premultiplied, and alpah is already in range 0-31
+	 */
+	uint16_t alphaBlendRGB565Premultiplied( uint32_t fg, uint32_t bg, uint8_t alpha )
+	 __attribute__((always_inline)) {
+		uint32_t result = ((((fg - bg) * alpha) >> 5) + bg) & 0b00000111111000001111100000011111;
+		return (uint16_t)((result >> 16) | result); // contract result
+	}
+	  
+	void Pixel(int16_t x, int16_t y, uint16_t color)
+	  __attribute__((always_inline)) {
+	    x+=_originx;
+	    y+=_originy;
+
+	  	//if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
+
+		#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	  	if (_use_fbtft) {
+	  		_pfbtft[y*_screenWidth + x] = color;
+	  		return;
+	  	}
+	  	#endif
+		setAddr(x, y, x, y);
+		writecommand(ST7735_RAMWR);
+		writedata16(color);
+	}
+
 };
+
+// To avoid conflict when also using Adafruit_GFX or any Adafruit library
+// which depends on Adafruit_GFX, #include the Adafruit library *BEFORE*
+// you #include ST7735_t3.h.
+#ifndef _ADAFRUIT_GFX_H
+class Adafruit_GFX_Button {
+public:
+	Adafruit_GFX_Button(void) { _gfx = NULL; }
+	void initButton(ST7735_t3 *gfx, int16_t x, int16_t y,
+		uint8_t w, uint8_t h,
+		uint16_t outline, uint16_t fill, uint16_t textcolor,
+		const char *label, uint8_t textsize);
+	void drawButton(bool inverted = false);
+	bool contains(int16_t x, int16_t y);
+	void press(boolean p) {
+		laststate = currstate;
+		currstate = p;
+	}
+	bool isPressed() { return currstate; }
+	bool justPressed() { return (currstate && !laststate); }
+	bool justReleased() { return (!currstate && laststate); }
+private:
+	ST7735_t3 *_gfx;
+	int16_t _x, _y;
+	uint16_t _w, _h;
+	uint8_t _textsize;
+	uint16_t _outlinecolor, _fillcolor, _textcolor;
+	char _label[10];
+	boolean currstate, laststate;
+};
+#endif
 
 #endif

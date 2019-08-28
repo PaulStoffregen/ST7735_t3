@@ -29,13 +29,21 @@
 #define ST77XX_MADCTL_ML  0x10
 #define ST77XX_MADCTL_RGB 0x00
 
-ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST) :
-    ST7735_t3(CS, RS, SID, SCLK, RST) 
+ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST, uint8_t miso) :
+    ST7735_t3(CS, RS, SID, SCLK, RST, miso) 
 {
   // Assume the majority of ones.
   tabcolor = INIT_ST7789_TABCOLOR;
   _screenHeight = 240;
   _screenWidth = 240;   
+  
+	cursor_y  = cursor_x    = 0;
+	textsize  = 1;
+	textcolor = textbgcolor = 0xFFFF;
+	wrap      = true;
+	font      = NULL;
+	setClipRect();
+	setOrigin();
 }
 
 ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) : 
@@ -43,7 +51,15 @@ ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) :
 {
   tabcolor = INIT_ST7789_TABCOLOR;
   _screenHeight = 240;
-  _screenWidth = 240;   
+  _screenWidth = 240; 
+
+	cursor_y  = cursor_x    = 0;
+	textsize  = 1;
+	textcolor = textbgcolor = 0xFFFF;
+	wrap      = true;
+	font      = NULL;
+	setClipRect();
+	setOrigin();
 }
 
 
