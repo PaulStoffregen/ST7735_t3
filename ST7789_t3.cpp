@@ -105,6 +105,11 @@ void  ST7789_t3::setRotation(uint8_t m)
   _rot = m;  
   endSPITransaction();
 //  Serial.printf("Set rotation %d start(%d %d) row: %d, col: %d\n", m, _xstart, _ystart, _rowstart, _colstart);
+  setClipRect();
+  setOrigin();
+	
+	cursor_x = 0;
+	cursor_y = 0;
 }
 
 #define ST7789_240x240_XSTART 0
@@ -154,12 +159,21 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
     _colstart = 0;
     _rowstart = 0;
   }
-	_height = height;
-	_width = width;
+  
+  _height = height;
+  _width = width;
   _screenHeight = height;
   _screenWidth = width;   
 
-	commandList(cmd_st7789);
-   setRotation(0);
+  commandList(cmd_st7789);
+  setRotation(0);
+  cursor_y  = cursor_x    = 0;
+  textsize  = 1;
+  textcolor = textbgcolor = 0xFFFF;
+  wrap      = true;
+  font      = NULL;
+  setClipRect();
+  setOrigin();
+  
 }
 

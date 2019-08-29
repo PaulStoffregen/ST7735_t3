@@ -66,6 +66,9 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_screenHeight = ST7735_TFTHEIGHT_160;
 	_screenWidth = ST7735_TFTWIDTH;	
 	
+	_width = _screenWidth;
+	_height = _screenHeight;
+	
 	cursor_y  = cursor_x    = 0;
 	textsize  = 1;
 	textcolor = textbgcolor = 0xFFFF;
@@ -911,8 +914,12 @@ void ST7735_t3::pushColor(uint16_t color, boolean last_pixel)
 
 void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
-	if ((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
-	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	x += _originx;
+	y += _originy;
+	
+	if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
+
+	#ifdef ENABLE_ST7735_FRAMEBUFFER
 	if (_use_fbtft) {
 		_pfbtft[y*_width + x] = color;
 
@@ -920,7 +927,7 @@ void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 	#endif
 	{
 		beginSPITransaction();
-		setAddr(x,y,x+1,y+1);
+		setAddr(x, y, x, y);
 		writecommand(ST7735_RAMWR);
 		writedata16_last(color);
 		endSPITransaction();
@@ -1003,11 +1010,18 @@ void ST7735_t3::fillScreen(uint16_t color)
 // fill a rectangle
 void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
 {
-	// rudimentary clipping (drawChar w/big text requires this)
-	if ((x >= _width) || (y >= _height)) return;
-	if ((x + w - 1) >= _width)  w = _width  - x;
-	if ((y + h - 1) >= _height) h = _height - y;
-	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	x+=_originx;
+	y+=_originy;
+
+	// Rectangular clipping (drawChar w/big text requires this)
+	if((x >= _displayclipx2) || (y >= _displayclipy2)) return;
+	if (((x+w) <= _displayclipx1) || ((y+h) <= _displayclipy1)) return;
+	if(x < _displayclipx1) {	w -= (_displayclipx1-x); x = _displayclipx1; 	}
+	if(y < _displayclipy1) {	h -= (_displayclipy1 - y); y = _displayclipy1; 	}
+	if((x + w - 1) >= _displayclipx2)  w = _displayclipx2  - x;
+	if((y + h - 1) >= _displayclipy2) h = _displayclipy2 - y;
+
+	#ifdef ENABLE_ST7735_FRAMEBUFFER
 	if (_use_fbtft) {
 		if ((x&1) || (w&1)) {
 			uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
@@ -1034,14 +1048,24 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 	} else 
 	#endif
 	{
+
+		// TODO: this can result in a very long transaction time
+		// should break this into multiple transactions, even though
+		// it'll cost more overhead, so we don't stall other SPI libs
 		beginSPITransaction();
 		setAddr(x, y, x+w-1, y+h-1);
 		writecommand(ST7735_RAMWR);
-		for (y=h; y>0; y--) {
+		for(y=h; y>0; y--) {
 			for(x=w; x>1; x--) {
 				writedata16(color);
 			}
 			writedata16_last(color);
+#if 0
+			if (y > 1 && (y & 1)) {
+				endSPITransaction();
+				beginSPITransaction();
+			}
+#endif			
 		}
 		endSPITransaction();
 	}
@@ -1058,6 +1082,7 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 
 void ST7735_t3::setRotation(uint8_t m)
 {
+	//Serial.printf("Setting Rotation to %d\n", m);
 	beginSPITransaction();
 	writecommand(ST7735_MADCTL);
 	rotation = m % 4; // can't be higher than 3
@@ -1080,7 +1105,7 @@ void ST7735_t3::setRotation(uint8_t m)
 			writedata_last(MADCTL_MY | MADCTL_MV | MADCTL_BGR);
 		}
 		_height = _screenWidth;
-		_width = _screenHeight;
+		_width  = _screenHeight;
      	_ystart = _colstart;
      	_xstart = _rowstart;
 		break;
@@ -1110,8 +1135,16 @@ void ST7735_t3::setRotation(uint8_t m)
 		break;
 	}
 	_rot = rotation;	// remember the rotation... 
-	//Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
 	endSPITransaction();
+
+	//Serial.printf("SetRotation(%d) _xstart=%d _ystart=%d _width=%d, _height=%d\n", _rot, _xstart, _ystart, _width, _height);
+
+	
+	setClipRect();
+	setOrigin();
+	
+	cursor_x = 0;
+	cursor_y = 0;
 }
 
 void ST7735_t3::setRowColStart(uint16_t x, uint16_t y) {
@@ -1436,9 +1469,9 @@ void ST7735::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcol
 // Now lets see if we can writemultiple pixels
 void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors)
 {
-
 	x+=_originx;
 	y+=_originy;
+
 	uint16_t x_clip_left = 0;  // How many entries at start of colors to skip at start of row
 	uint16_t x_clip_right = 0;    // how many color entries to skip at end of row for clipping
 	// Rectangular clipping 
@@ -1456,22 +1489,21 @@ void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint
  		pcolors += (dy*w); // Advance color array to 
  		y = _displayclipy1; 	
  	}
-
 	if((y + h - 1) >= _displayclipy2) h = _displayclipy2 - y;
-
 	// For X see how many items in color array to skip at start of row and likewise end of row 
 	if(x < _displayclipx1) {
 		x_clip_left = _displayclipx1-x; 
 		w -= x_clip_left; 
 		x = _displayclipx1; 	
 	}
+
 	if((x + w - 1) >= _displayclipx2) {
 		x_clip_right = w;
 		w = _displayclipx2  - x;
 		x_clip_right -= w; 
 	} 
 
-	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	#ifdef ENABLE_ST7735_FRAMEBUFFER
 	if (_use_fbtft) {
 		uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 		for (;h>0; h--) {

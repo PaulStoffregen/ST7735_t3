@@ -37,11 +37,6 @@
 #endif
 #endif
 
-
-#define ST7735_SPICLOCK 24000000
-//#define ST7735_SPICLOCK 16000000
-#define ST7735_SPICLOCK_READ  10000000
-
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
 #define INITR_REDTAB   0x1
@@ -187,6 +182,11 @@ typedef struct {
 //#define C_BASELINE 10 // Centre character baseline
 //#define R_BASELINE 11 // Right character baseline
 
+#ifdef __cplusplus
+
+#define ST7735_SPICLOCK 24000000
+//#define ST7735_SPICLOCK 16000000
+#define ST7735_SPICLOCK_READ  10000000
 
 class ST7735_t3 : public Print
 {
@@ -223,8 +223,8 @@ class ST7735_t3 : public Print
 
   ////
   	// from Adafruit_GFX.h
-	int16_t width(void) const { return _screenWidth; };
-	int16_t height(void) const { return _screenHeight; }
+	int16_t width(void) const { return _width; };
+	int16_t height(void) const { return _height; }
 	uint8_t getRotation(void);
 	
 	void drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
@@ -302,7 +302,7 @@ class ST7735_t3 : public Print
 	void setClipRect() {
 			 _clipx1 = 0; _clipy1 = 0; _clipx2 = _width; _clipy2 = _height; 
 			//if (Serial) Serial.printf("clear clip Rect\n");
-			 updateDisplayClip(); 
+			updateDisplayClip(); 
 		}	
 ////
 	
@@ -387,17 +387,15 @@ class ST7735_t3 : public Print
 	bool _standard = true; // no bounding rectangle or origin set. 
 
 	inline void updateDisplayClip() {
-		_displayclipx1 = max(0,min(_clipx1+_originx,width()));
-		_displayclipx2 = max(0,min(_clipx2+_originx,width()));
+		_displayclipx1 = max(0,min(_clipx1+_originx, width()));
+		_displayclipx2 = max(0,min(_clipx2+_originx, width()));
 
-		_displayclipy1 = max(0,min(_clipy1+_originy,height()));
-		_displayclipy2 = max(0,min(_clipy2+_originy,height()));
+		_displayclipy1 = max(0,min(_clipy1+_originy, height()));
+		_displayclipy2 = max(0,min(_clipy2+_originy, height()));
 		_invisible = (_displayclipx1 == _displayclipx2 || _displayclipy1 == _displayclipy2);
 		_standard =  (_displayclipx1 == 0) && (_displayclipx2 == _width) && (_displayclipy1 == 0) && (_displayclipy2 == _height);
 		if (Serial) {
-			//Serial.printf("UDC (%d %d)-(%d %d) %d %d\n", _displayclipx1, _displayclipy1, _displayclipx2, 
-			//	_displayclipy2, _invisible, _standard);
-
+			//Serial.printf("UDC (%d %d)-(%d %d) %d %d\n", _displayclipx1, _displayclipy1, _displayclipx2, _displayclipy2, _invisible, _standard);
 		}
 	}
 	
@@ -427,7 +425,7 @@ class ST7735_t3 : public Print
 
   uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
   
-  SPISettings _spiSettings;
+  //SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
   uint8_t pcs_data, pcs_command;
@@ -616,15 +614,47 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 	void HLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
-
+		#ifdef ENABLE_ST7735_FRAMEBUFFER
+	  	if (_use_fbtft) {
 	  		drawFastHLine(x, y, w, color);
+	  		return;
+	  	}
+	  	#endif
+	    x+=_originx;
+	    y+=_originy;
+
+	    // Rectangular clipping
+	    if((y < _displayclipy1) || (x >= _displayclipx2) || (y >= _displayclipy2)) return;
+	    if(x<_displayclipx1) { w = w - (_displayclipx1 - x); x = _displayclipx1; }
+	    if((x+w-1) >= _displayclipx2)  w = _displayclipx2-x;
+	    if (w<1) return;
+
+		setAddr(x, y, x+w-1, y);
+		writecommand(ST7735_RAMWR);
+		do { writedata16(color); } while (--w > 0);
 	  }
 	  
 	void VLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
+		#ifdef ENABLE_ST7735_FRAMEBUFFER
+	  	if (_use_fbtft) {
 	  		drawFastVLine(x, y, h, color);
+	  		return;
+	  	}
+	  	#endif
+		x+=_originx;
+	    y+=_originy;
 
+	    // Rectangular clipping
+	    if((x < _displayclipx1) || (x >= _displayclipx2) || (y >= _displayclipy2)) return;
+	    if(y < _displayclipy1) { h = h - (_displayclipy1 - y); y = _displayclipy1;}
+	    if((y+h-1) >= _displayclipy2) h = _displayclipy2-y;
+	    if(h<1) return;
+
+		setAddr(x, y, x, y+h-1);
+		writecommand(ST7735_RAMWR);
+		do { writedata16(color); } while (--h > 0);
 	  }
 	  
 	/**
@@ -709,4 +739,6 @@ private:
 };
 #endif
 
-#endif
+#endif	 //end cplus
+
+#endif	 
