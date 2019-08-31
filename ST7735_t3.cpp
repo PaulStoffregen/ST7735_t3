@@ -15,9 +15,7 @@
   Written by Limor Fried/Ladyada for Adafruit Industries.
   MIT license, all text above must be included in any redistribution
  ****************************************************/
-//#include "glcdfont.c"
-extern "C" const unsigned char glcdfont[];
- 
+
 #include "ST7735_t3.h"
 #include "ST7789_t3.h"
 #include <limits.h>
@@ -54,7 +52,11 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_sid  = sid;
 	_sclk = sclk;
 	_rst  = rst;
-	_miso = miso;
+	if(miso == -1){
+		_miso = 0xff;
+	} else {
+		_miso = miso;
+	}
 	_rot = 0xff;
 	hwSPI = false;
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
@@ -74,6 +76,11 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
+	
+	#ifdef KINETISK
+	  _fifo_size = _spi_hardware->queue_size;		// remember the queue size
+	#endif
+	
 	setClipRect();
 	setOrigin();
 }
@@ -645,6 +652,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
 	if (_sid == (uint8_t)-1) _sid = 11;
 	if (_sclk == (uint8_t)-1) _sclk = 13;
+	if (_miso != 0xff) _miso = 12;
 
 	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
 		_pspi = &SPI;
@@ -674,6 +682,8 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		hwSPI = true;
 		_pspi->setMOSI(_sid);
 		_pspi->setSCK(_sclk);
+		if(_miso != 0xff) _pspi->setMISO(_miso);
+		
 		_pspi->begin();
 		//Serial.println("After SPI begin");
 		_spiSettings = SPISettings(ST7735_SPICLOCK, MSBFIRST, mode);
@@ -702,6 +712,11 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		rspin = portOutputRegister(digitalPinToPort(_rs));
 		clkpin = portOutputRegister(digitalPinToPort(_sclk));
 		datapin = portOutputRegister(digitalPinToPort(_sid));
+		if(_miso != 0xff){
+			inputpin = portOutputRegister(digitalPinToPort(_miso));
+			*inputpin = 0;
+			pinMode(_miso, INPUT);
+		}
 		*cspin = 1;
 		*rspin = 0;
 		*clkpin = 0;
@@ -912,6 +927,10 @@ void ST7735_t3::pushColor(uint16_t color, boolean last_pixel)
 	}
 }
 
+//#include "glcdfont.c"
+extern "C" const unsigned char glcdfont[];
+ 
+
 void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
 	x += _originx;
@@ -998,14 +1017,10 @@ void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	}
 }
 
-
-
 void ST7735_t3::fillScreen(uint16_t color)
 {
 	fillRect(0, 0,  _width, _height, color);
 }
-
-
 
 // fill a rectangle
 void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color)
@@ -1190,23 +1205,24 @@ uint16_t ST7735_t3::readPixel(int16_t x, int16_t y)
 #ifdef KINETISK	
 	//BUGBUG:: Should add some validation of X and Y
 	// Now if we are in buffer mode can return real fast
-	#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	#ifdef ENABLE_ILI9488_FRAMEBUFFER
 	if (_use_fbtft) {
 		x+=_originx;
 		y+=_originy;
 
-		return _pfbtft[y*_width + x] ;
+		uint8_t color_index =  _pfbtft[y*_width + x];
+		return _colors_are_index ? color_index : _pallet[color_index];
 	}
 	#endif	
 
-   if (_miso == -1) return 0xffff;	// bail if not valid miso
+    if (_miso == 0xff) return 0xffff;	// bail if not valid miso
 
 	// First pass for other SPI busses use readRect to handle the read... 
-	if (_pspin->sizeFIFO() < 4) {
-		uint16_t colors;
-		readRect(x, y, 1, 1, &colors);
-		return colors;
-	}
+	//if (SPIClass::hardware().queue_size < 4) {
+	//	uint16_t colors;
+	//	readRect(x, y, 1, 1, &colors);
+	//	return colors;
+	//}
 
 	uint8_t dummy __attribute__((unused));
 	uint8_t r,g,b;
@@ -1219,18 +1235,19 @@ uint16_t ST7735_t3::readPixel(int16_t x, int16_t y)
 
 	setAddr(x, y, x, y);
 	writecommand(ST7735_RAMRD); // read from RAM
-	_pspin->waitTransmitComplete();
-
+	waitTransmitComplete();
+	
 	// Push 4 bytes over SPI
 	_pkinetisk_spi->PUSHR = 0 | (pcs_data << 16) | SPI_PUSHR_CTAS(0)| SPI_PUSHR_CONT;
-	_pspin->waitFifoEmpty();    // wait for both queues to be empty.
+	waitFifoEmpty();    // wait for both queues to be empty.
 
 	_pkinetisk_spi->PUSHR = 0 | (pcs_data << 16) | SPI_PUSHR_CTAS(0)| SPI_PUSHR_CONT;
 	_pkinetisk_spi->PUSHR = 0 | (pcs_data << 16) | SPI_PUSHR_CTAS(0)| SPI_PUSHR_CONT;
 	_pkinetisk_spi->PUSHR = 0 | (pcs_data << 16) | SPI_PUSHR_CTAS(0)| SPI_PUSHR_EOQ;
 
+
 	// Wait for End of Queue
-	while ((_pkinetisk_spi->SR & SPI_SR_EOQF) == 0) ;
+	while ((_pkinetisk_spi->SR & SPI_SR_EOQF) == 0);
 	_pkinetisk_spi->SR = SPI_SR_EOQF;  // make sure it is clear
 
 	// Read Pixel Data
@@ -1240,7 +1257,6 @@ uint16_t ST7735_t3::readPixel(int16_t x, int16_t y)
 	b = _pkinetisk_spi->POPR;		// Read a BLUE byte of GRAM
 
 	endSPITransaction();
-
 	return Color565(r,g,b);
 #else
 	// Kinetisk
@@ -1251,7 +1267,6 @@ uint16_t ST7735_t3::readPixel(int16_t x, int16_t y)
 }
 
 // Now lets see if we can read in multiple pixels
-#ifdef KINETISK
 void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors)
 {
 	// Use our Origin. 
@@ -1259,13 +1274,14 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 	y+=_originy;
 	//BUGBUG:: Should add some validation of X and Y
 
-	#ifdef ENABLE_ILI9341_FRAMEBUFFER
+	#ifdef ENABLE_ILI9488_FRAMEBUFFER
 	if (_use_fbtft) {
-		uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
+		uint8_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 		for (;h>0; h--) {
-			uint16_t * pfbPixel = pfbPixel_row;
+			uint8_t * pfbPixel = pfbPixel_row;
 			for (int i = 0 ;i < w; i++) {
-				*pcolors++ = *pfbPixel++;
+				uint8_t color_index = *pfbPixel++;
+				*pcolors++ = _colors_are_index? color_index : _pallet[color_index];
 			}
 			pfbPixel_row += _width;
 		}
@@ -1273,7 +1289,7 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 	}
 	#endif	
 
-   if (_miso == -1) return;		// bail if not valid miso
+	if (_miso == 0xff) return;		// bail if not valid miso
 
 	uint8_t rgb[3];               // RGB bytes received from the display
 	uint8_t rgbIdx = 0;
@@ -1294,7 +1310,8 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 
 	while (txCount || rxCount) {
 		// transmit another byte if possible
-		if (txCount && ((_pkinetisk_spi->SR & 0xF000) >> 12) < _pspin->sizeFIFO()) {
+		//if (txCount && ((_pkinetisk_spi->SR & 0xF000) >> 12) < SPIClass::hardware().queue_size()) {
+		if (txCount && ((_pkinetisk_spi->SR & 0xF000) >> 12) < 4) {
 			txCount--;
 			if (txCount) {
 				_pkinetisk_spi->PUSHR = READ_PIXEL_PUSH_BYTE | (pcs_data << 16) | SPI_PUSHR_CTAS(0)| SPI_PUSHR_CONT;
@@ -1324,147 +1341,8 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 	while ((_pkinetisk_spi->SR & SPI_SR_EOQF) == 0) ;
 	_pkinetisk_spi->SR = SPI_SR_EOQF;  // make sure it is clear
 	endSPITransaction();
-
-}
-#elif defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x 
-void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors)
-{
-	// Use our Origin. 
-	x+=_originx;
-	y+=_originy;
-	//BUGBUG:: Should add some validation of X and Y
-
-	#ifdef ENABLE_ILI9341_FRAMEBUFFER
-	if (_use_fbtft) {
-		uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
-		for (;h>0; h--) {
-			uint16_t * pfbPixel = pfbPixel_row;
-			for (int i = 0 ;i < w; i++) {
-				*pcolors++ = *pfbPixel++;
-			}
-			pfbPixel_row += _width;
-		}
-		return;	
-	}
-	#endif	
-
-   if (_miso == -1) return;		// bail if not valid miso
-
-	uint8_t rgb[3];               // RGB bytes received from the display
-	uint8_t rgbIdx = 0;
-	uint32_t txCount = w * h * 3; // number of bytes we will transmit to the display
-	uint32_t rxCount = txCount;   // number of bytes we will receive back from the display
-
-	beginSPITransaction(ST7735_SPICLOCK_READ);
-
-	setAddr(x, y, x+w-1, y+h-1);
-	writecommand(ST7735_RAMRD); // read from RAM
-
-
-	// transmit a DUMMY byte before the color bytes
-	writedata_last(0);		// BUGBUG:: maybe fix this as this will wait until the byte fully transfers through.
-
-	while (txCount || rxCount) {
-		// transmit another byte if possible
-		if (txCount && (_pimxrt_spi->SR & LPSPI_SR_TDF)) {
-			txCount--;
-			if (txCount) {
-				_pimxrt_spi->TDR = 0;
-			} else {
-				maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7)); // remove the CONTINUE...
-				while ((_pimxrt_spi->SR & LPSPI_SR_TDF) == 0) ;		// wait if queue was full
-				_pimxrt_spi->TDR = 0;
-			}
-		}
-
-		// receive another byte if possible, and either skip it or store the color
-		if (rxCount && !(_pimxrt_spi->RSR & LPSPI_RSR_RXEMPTY)) {
-			rgb[rgbIdx] = _pimxrt_spi->RDR;
-
-			rxCount--;
-			rgbIdx++;
-			if (rgbIdx == 3) {
-				rgbIdx = 0;
-				*pcolors++ = Color565(rgb[0], rgb[1], rgb[2]);
-			}
-		}
-	}
-
-	// We should have received everything so should be done
-	endSPITransaction();
 }
 
-#else
-
-// Teensy LC version
-void ST7735::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors)
-{
-	// Use our Origin. 
-	x+=_originx;
-	y+=_originy;
-	//BUGBUG:: Should add some validation of X and Y
-
-   if (_miso == -1) return;		// bail if not valid miso
-
-	uint8_t rgb[3];               // RGB bytes received from the display
-	uint8_t rgbIdx = 0;
-	uint32_t txCount = w * h * 3; // number of bytes we will transmit to the display
-	uint32_t rxCount = txCount;   // number of bytes we will receive back from the display
-
-	beginSPITransaction(ST7735_SPICLOCK_READ);
-
-	setAddr(x, y, x+w-1, y+h-1);
-	writecommand(ST7735_RAMRD); // read from RAM
-
-	// transmit a DUMMY byte before the color bytes
-	writedata(0);
-
-	// Wait until that one returns, Could do a little better and double buffer but this is easer for now.
-	waitTransmitComplete();
-
-	// Since double buffer setup lets try keeping read/write in sync
-#define RRECT_TIMEOUT 0xffff	
-#undef 	READ_PIXEL_PUSH_BYTE
-#define READ_PIXEL_PUSH_BYTE 0 // try with zero to see... 	
-	uint16_t timeout_countdown = RRECT_TIMEOUT;
-	uint16_t dl_in;
-	// Write out first byte:
-
-	while (!(_pkinetisl_spi->S & SPI_S_SPTEF)) ; // Not worried that this can completely hang?
-	_pkinetisl_spi->DL = READ_PIXEL_PUSH_BYTE;
-
-	while (rxCount && timeout_countdown) {
-		// Now wait until we can output something
-		dl_in = 0xffff;
-		if (rxCount > 1) {
-			while (!(_pkinetisl_spi->S & SPI_S_SPTEF)) ; // Not worried that this can completely hang?
-			if (_pkinetisl_spi->S & SPI_S_SPRF)
-				dl_in = _pkinetisl_spi->DL;  
-			_pkinetisl_spi->DL = READ_PIXEL_PUSH_BYTE;
-		}
-
-		// Now wait until there is a byte available to receive
-		while ((dl_in != 0xffff) && !(_pkinetisl_spi->S & SPI_S_SPRF) && --timeout_countdown) ;
-		if (timeout_countdown) {   // Make sure we did not get here because of timeout 
-			rxCount--;
-			rgb[rgbIdx] = (dl_in != 0xffff)? dl_in : _pkinetisl_spi->DL;
-			rgbIdx++;
-			if (rgbIdx == 3) {
-				rgbIdx = 0;
-				*pcolors++ = Color565(rgb[0], rgb[1], rgb[2]);
-			}
-			timeout_countdown = timeout_countdown;
-		}
-	}
-
-	// Debug code. 
-/*	if (timeout_countdown == 0) {
-		Serial.print("RRect Timeout ");
-		Serial.println(rxCount, DEC);
-	} */
-	endSPITransaction();
-}
-#endif		
 
 // Now lets see if we can writemultiple pixels
 void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors)
@@ -3301,6 +3179,7 @@ void ST7735_t3::process_dma_interrupt(void) {
 	digitalWriteFast(DEBUG_PIN_2, LOW);
 #endif
 }
+
 //=======================================================================
 // Add optinal support for using frame buffer to speed up complex outputs
 //=======================================================================
@@ -3778,6 +3657,7 @@ void ST7735_t3::waitUpdateAsyncComplete(void)
 #endif
 	#endif	
 }
+
 #endif
 
 #endif

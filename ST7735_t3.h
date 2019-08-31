@@ -20,8 +20,10 @@
 #define __ST7735_t3_H_
 
 #include "Arduino.h"
+#include "DMAChannel.h"
+#ifdef __cplusplus
 #include <SPI.h>
-//#include <Adafruit_GFX.h>
+#endif
 
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
@@ -125,25 +127,6 @@
 #define ST77XX_YELLOW     0xFFE0
 #define ST77XX_ORANGE     0xFC00
 
-#ifndef swap
-#define swap(a, b) { typeof(a) t = a; a = b; b = t; }
-#endif
-
-#if defined(__IMXRT1062__)  // Teensy 4.x
-// Also define these in lower memory so as to make sure they are not cached...
-// try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
-// as to move it out of the memory that is cached...
-#define ST77XX_DMA_BUFFER_SIZE 512
-typedef struct {
-  DMASetting      _dmasettings[2];
-  DMAChannel      _dmatx;
-  uint16_t        _dma_buffer1[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
-  uint16_t        _dma_buffer2[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));  
-} ST7735DMA_Data;
-#endif
-
-#define CL(_r,_g,_b) ((((_r)&0xF8)<<8)|(((_g)&0xFC)<<3)|((_b)>>3))
-
 
 typedef struct {
 	const unsigned char *index;
@@ -165,6 +148,28 @@ typedef struct {
 	unsigned char cap_height;
 } ST7735_t3_font_t;
 
+#ifndef swap
+#define swap(a, b) { typeof(a) t = a; a = b; b = t; }
+#endif
+
+#ifdef __cplusplus
+
+#if defined(__IMXRT1062__)  // Teensy 4.x
+// Also define these in lower memory so as to make sure they are not cached...
+// try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
+// as to move it out of the memory that is cached...
+#define ST77XX_DMA_BUFFER_SIZE 512
+typedef struct {
+  DMASetting      _dmasettings[2];
+  DMAChannel      _dmatx;
+  uint16_t        _dma_buffer1[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
+  uint16_t        _dma_buffer2[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));  
+} ST7735DMA_Data;
+#endif
+
+#define CL(_r,_g,_b) ((((_r)&0xF8)<<8)|(((_g)&0xFC)<<3)|((_b)>>3))
+
+
 //These enumerate the text plotting alignment (reference datum point)
 #define TL_DATUM 0 // Top left (default)
 #define TC_DATUM 1 // Top centre
@@ -182,18 +187,18 @@ typedef struct {
 //#define C_BASELINE 10 // Centre character baseline
 //#define R_BASELINE 11 // Right character baseline
 
-#ifdef __cplusplus
+
 
 #define ST7735_SPICLOCK 24000000
 //#define ST7735_SPICLOCK 16000000
-#define ST7735_SPICLOCK_READ  10000000
+#define ST7735_SPICLOCK_READ  6000000
 
 class ST7735_t3 : public Print
 {
 
  public:
 
-  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1, uint8_t miso = -1);
+  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1, uint8_t miso = 0xff);
   ST7735_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1);
 
   void     initB(void),                             // for ST7735B displays
@@ -425,12 +430,13 @@ class ST7735_t3 : public Print
 
   uint16_t _colstart, _rowstart, _xstart, _ystart, _rot, _screenHeight, _screenWidth;
   
-  //SPISettings _spiSettings;
+  SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
   uint8_t pcs_data, pcs_command;
   uint32_t ctar;
-  volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
+  volatile uint8_t *datapin, *clkpin, *cspin, *rspin, *inputpin;
+  uint8_t _fifo_size;
 
   SPIClass *_pspi = nullptr;
   uint8_t   _spi_num;          // Which buss is this spi on? 
@@ -451,7 +457,22 @@ class ST7735_t3 : public Print
     if (_pspi) _pspi->endTransaction();  
   }
 
-
+	void waitFifoNotFull(void) {
+		uint32_t sr;
+		uint32_t tmp __attribute__((unused));
+		do {
+			sr = _pkinetisk_spi->SR;
+			if (sr & 0xF0) tmp = _pkinetisk_spi->POPR;  // drain RX FIFO
+		} while ((uint16_t)(sr & (15 << 12)) > ((uint16_t)(_fifo_size-1) << 12));
+	}
+	void waitFifoEmpty(void) {
+		uint32_t sr;
+		uint32_t tmp __attribute__((unused));
+		do {
+			sr = _pkinetisk_spi->SR;
+			if (sr & 0xF0) tmp = _pkinetisk_spi->POPR;  // drain RX FIFO
+		} while ((sr & 0xF0F0) > 0);             // wait both RX & TX empty
+	}
 #endif
 #if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
