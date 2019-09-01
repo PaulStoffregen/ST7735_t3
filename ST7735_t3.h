@@ -188,7 +188,6 @@ typedef struct {
 //#define R_BASELINE 11 // Right character baseline
 
 
-
 #define ST7735_SPICLOCK 24000000
 //#define ST7735_SPICLOCK 16000000
 #define ST7735_SPICLOCK_READ  6000000
@@ -198,7 +197,7 @@ class ST7735_t3 : public Print
 
  public:
 
-  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1, uint8_t miso = 0xff);
+  ST7735_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST = -1);
   ST7735_t3(uint8_t CS, uint8_t RS, uint8_t RST = -1);
 
   void     initB(void),                             // for ST7735B displays
@@ -334,6 +333,10 @@ class ST7735_t3 : public Print
 	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors);
   void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
 
+uint8_t read(void);
+void end_SDA_Read(void);
+void begin_SDA_Read(void);
+
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
   enum {ST77XX_DMA_INIT=0x01, ST77XX_DMA_CONT=0x02, ST77XX_DMA_FINISH=0x04,ST77XX_DMA_ACTIVE=0x80};
@@ -432,11 +435,10 @@ class ST7735_t3 : public Print
   
   SPISettings _spiSettings;
 #if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
-  uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
+  uint8_t  _cs, _rs, _rst, _sid, _sclk;
   uint8_t pcs_data, pcs_command;
   uint32_t ctar;
-  volatile uint8_t *datapin, *clkpin, *cspin, *rspin, *inputpin;
-  uint8_t _fifo_size;
+  volatile uint8_t *datapin, *clkpin, *cspin, *rspin;
 
   SPIClass *_pspi = nullptr;
   uint8_t   _spi_num;          // Which buss is this spi on? 
@@ -456,23 +458,6 @@ class ST7735_t3 : public Print
     if (cspin) *cspin = 1;
     if (_pspi) _pspi->endTransaction();  
   }
-
-	void waitFifoNotFull(void) {
-		uint32_t sr;
-		uint32_t tmp __attribute__((unused));
-		do {
-			sr = _pkinetisk_spi->SR;
-			if (sr & 0xF0) tmp = _pkinetisk_spi->POPR;  // drain RX FIFO
-		} while ((uint16_t)(sr & (15 << 12)) > ((uint16_t)(_fifo_size-1) << 12));
-	}
-	void waitFifoEmpty(void) {
-		uint32_t sr;
-		uint32_t tmp __attribute__((unused));
-		do {
-			sr = _pkinetisk_spi->SR;
-			if (sr & 0xF0) tmp = _pkinetisk_spi->POPR;  // drain RX FIFO
-		} while ((sr & 0xF0F0) > 0);             // wait both RX & TX empty
-	}
 #endif
 #if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
@@ -546,7 +531,7 @@ class ST7735_t3 : public Print
 }
 
 
-  uint8_t  _cs, _rs, _rst, _sid, _sclk, _miso;
+  uint8_t  _cs, _rs, _rst, _sid, _sclk;
 
   uint32_t _cspinmask;
   volatile uint32_t *_csport;

@@ -29,8 +29,7 @@
 #define ST77XX_MADCTL_ML  0x10
 #define ST77XX_MADCTL_RGB 0x00
 
-ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST, uint8_t miso) :
-    ST7735_t3(CS, RS, SID, SCLK, RST, miso) 
+ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST) : ST7735_t3(CS, RS, SID, SCLK, RST) 
 {
   // Assume the majority of ones.
   tabcolor = INIT_ST7789_TABCOLOR;
