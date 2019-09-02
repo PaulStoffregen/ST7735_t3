@@ -35,12 +35,10 @@ ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 void setup() {
 
   Serial.begin(9600);
-
  
   tft.init(240, 320);           // Init ST7789 320x240
   tft.setRotation(3);
   tft.useFrameBuffer(true);
-
   tft.fillScreen(ST7735_BLACK);
   while (!Serial) ; 
   tft.setTextColor(ST7735_WHITE);  tft.setTextSize(1);
@@ -60,27 +58,26 @@ void setup() {
   for(int i=0;i<20;i++){
     tft.print("  this is line ");
     tft.println(i);
-    delay(100);
     tft.updateScreen();
+    delay(100);
   }
 
   tft.fillScreen(ST7735_BLACK);
   tft.setScrollTextArea(40,50,120,120);
-
   tft.setScrollBackgroundColor(ST7735_GREEN);
-
   tft.setFont(ComicSansMS_10);
 
   tft.setTextSize(1);
   tft.setCursor(40, 50);
 
   for(int i=0;i<20;i++){
-    tft.printf("  this is line ");
-    tft.printf("%d\n",i);
+    tft.print("  this is line ");
+    tft.println(i);
     tft.updateScreen();
     delay(500);
   }
-    tft.updateScreen();
+
+
 }
 
 

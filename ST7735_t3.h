@@ -39,6 +39,10 @@
 #endif
 #endif
 
+
+#define ST7735_SPICLOCK 24000000
+//#define ST7735_SPICLOCK 16000000
+
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
 #define INITR_REDTAB   0x1
@@ -188,9 +192,6 @@ typedef struct {
 //#define R_BASELINE 11 // Right character baseline
 
 
-#define ST7735_SPICLOCK 24000000
-//#define ST7735_SPICLOCK 16000000
-#define ST7735_SPICLOCK_READ  6000000
 
 class ST7735_t3 : public Print
 {
@@ -285,6 +286,8 @@ class ST7735_t3 : public Print
 	void disableScroll(void);
 	void scrollTextArea(uint8_t scrollSize);
 	void resetScrollBackgroundColor(uint16_t color);
+	uint16_t readPixel(int16_t x, int16_t y);
+	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors);
 
 	// setOrigin sets an offset in display pixels where drawing to (0,0) will appear
 	// for example: setOrigin(10,10); drawPixel(5,5); will cause a pixel to be drawn at hardware pixel (15,15)
@@ -328,14 +331,7 @@ class ST7735_t3 : public Print
   void     dummyclock(void);
   */
   // Useful methods added from ili9341_t3 
-	// Added functions to read pixel data...
-	uint16_t readPixel(int16_t x, int16_t y);
-	void readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *pcolors);
   void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
-
-uint8_t read(void);
-void end_SDA_Read(void);
-void begin_SDA_Read(void);
 
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
@@ -448,8 +444,8 @@ void begin_SDA_Read(void);
   void waitTransmitComplete(uint32_t mcr);
   uint32_t _fifo_full_test;
 
-  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
-    if (_pspi) _pspi->beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
+  inline void beginSPITransaction() {
+    if (_pspi) _pspi->beginTransaction(_spiSettings);
     if (cspin) *cspin = 0;
   }
 
@@ -458,14 +454,16 @@ void begin_SDA_Read(void);
     if (cspin) *cspin = 1;
     if (_pspi) _pspi->endTransaction();  
   }
+
+
 #endif
 #if defined(__IMXRT1062__)  // Teensy 4.x
   SPIClass *_pspi = nullptr;
-  uint8_t   _spi_num;          // Which buss is this spi on? 
+  uint8_t   _spi_num = 0;          // Which buss is this spi on? 
   IMXRT_LPSPI_t *_pimxrt_spi = nullptr;
   SPIClass::SPI_Hardware_t *_spi_hardware;
   uint8_t _pending_rx_count = 0;
-  uint32_t _spi_tcr_current;
+  uint32_t _spi_tcr_current = 0; 
 
 
   void DIRECT_WRITE_LOW(volatile uint32_t * base, uint32_t mask)  __attribute__((always_inline)) {
@@ -496,8 +494,8 @@ void begin_SDA_Read(void);
     }
   }
 
-  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
-    if (hwSPI) _pspi->beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
+  inline void beginSPITransaction() {
+    if (hwSPI) _pspi->beginTransaction(_spiSettings);
     if (_csport)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
@@ -550,9 +548,9 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
-  inline void beginSPITransaction(uint32_t clock = ST7735_SPICLOCK) {
-    if (hwSPI) SPI.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
-    else if (hwSPI1) SPI1.beginTransaction(SPISettings(clock, MSBFIRST, SPI_MODE0));
+  inline void beginSPITransaction() {
+    if (hwSPI) SPI.beginTransaction(_spiSettings);
+    else if (hwSPI1) SPI1.beginTransaction(_spiSettings);
     if (csport)*csport &= ~cspinmask;
   }
 

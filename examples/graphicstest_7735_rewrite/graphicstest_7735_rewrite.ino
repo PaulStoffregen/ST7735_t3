@@ -30,12 +30,12 @@
 // If you use the short version of the constructor and the DC
 // pin is hardware CS pin, then it will be slower.
 
-#define TFT_MISO  1
-#define TFT_MOSI  26  //a12
-#define TFT_SCK   27  //a13
-#define TFT_DC   6 
-#define TFT_CS   0  
-#define TFT_RST  5
+#define TFT_MISO  12
+#define TFT_MOSI  11  //a12
+#define TFT_SCK   13  //a13
+#define TFT_DC   9 
+#define TFT_CS   10  
+#define TFT_RST  8
 
 // Note the above pins are for the SPI object.  For those Teensy boards which have
 // more than one SPI object, such as T3.5, T3.6, T4 which have at SPI1 and SPI2
@@ -51,7 +51,7 @@
 // Note: code will detect if specified pins are the hardware SPI pins
 //       and will use hardware SPI if appropriate
 // For 1.44" and 1.8" TFT with ST7735 use
-ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST, TFT_MISO);
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 // For 1.54" or other TFT with ST7789, This has worked with some ST7789
 // displays without CS pins, for those you can pass in -1 or 0xff for CS
