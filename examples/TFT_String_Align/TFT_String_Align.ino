@@ -27,7 +27,7 @@ BR_DATUM = Bottom right
 #define TFT_CS   0  
 #define TFT_RST  5
 
-ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST, 12);
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 unsigned long drawTime = 0;
 
