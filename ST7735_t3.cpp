@@ -2813,9 +2813,6 @@ void ST7735_t3::drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32
 
 
 
-///
-///
-///
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
 void ST7735_t3::dmaInterrupt(void) {
 	if (_dmaActiveDisplay[0])  {
