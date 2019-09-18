@@ -154,9 +154,16 @@ void ST7735_t3::writecommand(uint8_t c)
 }
 
 void ST7735_t3::writecommand_last(uint8_t c) {
-	uint32_t mcr = _pkinetisk_spi->MCR;
-	_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
-	waitTransmitComplete(mcr);
+	if (hwSPI) {
+		uint32_t mcr = _pkinetisk_spi->MCR;
+		_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
+		waitTransmitComplete(mcr);
+	} else {
+		*rspin = 0;
+		*cspin = 0;
+		spiwrite(c);
+		*cspin = 1;
+	}
 }
 
 void ST7735_t3::writedata(uint8_t c)
@@ -694,7 +701,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
 		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
 	} else {
+		//Serial.println("ST7735_t3::commonInit Software SPI :(");
 		hwSPI = false;
+		_pspi = nullptr;
 		cspin = (_cs != 0xff)? portOutputRegister(digitalPinToPort(_cs)) : 0;
 		rspin = portOutputRegister(digitalPinToPort(_rs));
 		clkpin = portOutputRegister(digitalPinToPort(_sclk));
@@ -2803,9 +2812,7 @@ void ST7735_t3::drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32
 }
 
 
-///
-///
-///
+
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
 void ST7735_t3::dmaInterrupt(void) {
 	if (_dmaActiveDisplay[0])  {
