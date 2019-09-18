@@ -126,9 +126,16 @@ void ST7735_t3::writecommand(uint8_t c)
 }
 
 void ST7735_t3::writecommand_last(uint8_t c) {
-	uint32_t mcr = _pkinetisk_spi->MCR;
-	_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
-	waitTransmitComplete(mcr);
+	if (hwSPI) {
+		uint32_t mcr = _pkinetisk_spi->MCR;
+		_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
+		waitTransmitComplete(mcr);
+	} else {
+		*rspin = 0;
+		*cspin = 0;
+		spiwrite(c);
+		*cspin = 1;
+	}
 }
 
 void ST7735_t3::writedata(uint8_t c)
