@@ -234,6 +234,7 @@ class ST7735_t3 : public Adafruit_GFX {
   uint8_t  tabcolor;
 
   void     spiwrite(uint8_t),
+           spiwrite16(uint16_t d),
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
