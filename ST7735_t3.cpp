@@ -133,11 +133,28 @@ inline void ST7735_t3::waitTransmitComplete(uint32_t mcr) {
 
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
+	// pass 1 if we actually are setup to with MOSI and SCLK on hardware SPI use it...
+	if (_pspi) {
+		_pspi->transfer(c);
+		return;
+	}
+
 	for (uint8_t bit = 0x80; bit; bit >>= 1) {
 		*datapin = ((c & bit) ? 1 : 0);
 		*clkpin = 1;
 		*clkpin = 0;
 	}
+}
+
+inline void ST7735_t3::spiwrite16(uint16_t d)
+{
+	// pass 1 if we actually are setup to with MOSI and SCLK on hardware SPI use it...
+	if (_pspi) {
+		_pspi->transfer16(d);
+		return;
+	}
+	spiwrite(d >> 8);
+	spiwrite(d);
 }
 
 void ST7735_t3::writecommand(uint8_t c)
@@ -147,9 +164,7 @@ void ST7735_t3::writecommand(uint8_t c)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 0;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -160,9 +175,7 @@ void ST7735_t3::writecommand_last(uint8_t c) {
 		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 0;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -173,9 +186,7 @@ void ST7735_t3::writedata(uint8_t c)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -187,9 +198,7 @@ void ST7735_t3::writedata_last(uint8_t c)
 		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 1;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -200,13 +209,9 @@ void ST7735_t3::writedata16(uint16_t d)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
-		*cspin = 0;
-		spiwrite(d >> 8);
-		spiwrite(d);
-		*cspin = 1;
+		spiwrite16(d);
 	}
 }
-
 
 
 void ST7735_t3::writedata16_last(uint16_t d)
@@ -217,8 +222,7 @@ void ST7735_t3::writedata16_last(uint16_t d)
 		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 1;
-		spiwrite(d >> 8);
-		spiwrite(d);
+		spiwrite16(d);
 	}
 }
 
@@ -650,7 +654,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	if (_sid == (uint8_t)-1) _sid = 11;
 	if (_sclk == (uint8_t)-1) _sclk = 13;
 
-	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
+	// Lets try to handle cases where DC is not hardware, without going all the way down to bit bang!
+	//if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
+	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk)) {
 		_pspi = &SPI;
 		_spi_num = 0;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI0;  // Could hack our way to grab this from SPI object, but...
@@ -658,14 +664,14 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		//Serial.println("ST7735_t3::commonInit SPI");
 
     #if  defined(__MK64FX512__) || defined(__MK66FX1M0__)
-	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk) && SPI1.pinIsChipSelect(_rs)) {
+	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk)) {
 		_pspi = &SPI1;
 		_spi_num = 1;          // Which buss is this spi on? 
 
 		_pkinetisk_spi = &KINETISK_SPI1;
 		_fifo_full_test = (0 << 12);
 		//Serial.println("ST7735_t3::commonInit SPI1");
-	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk) && SPI2.pinIsChipSelect(_rs)) {
+	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk)) {
 		_pspi = &SPI2;
 		_spi_num = 2;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI2;
@@ -687,7 +693,8 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 			pcs_command = pcs_data | _pspi->setCS(_rs);
 			cspin = 0; // Let know that we are not setting manual
 			//Serial.println("Both CS and DC are SPI pins");
-		} else {
+		// See if at least DC is hardware CS... 	
+		} else if (_pspi->pinIsChipSelect(_rs)) {
 			// We already verified that _rs was valid CS pin above.
 			pcs_data = 0;
 			pcs_command = pcs_data | _pspi->setCS(_rs);
@@ -696,6 +703,20 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 				cspin = portOutputRegister(digitalPinToPort(_cs));
 				*cspin = 1;
 			}
+		} else {
+			// DC is not, and won't bother to check CS... 
+			pcs_data = 0;
+			pcs_command = 0;
+			if (_cs != 0xff) {
+				pinMode(_cs, OUTPUT);
+				cspin = portOutputRegister(digitalPinToPort(_cs));
+				*cspin = 1;
+			}
+			pinMode(_rs, OUTPUT);
+			rspin = portOutputRegister(digitalPinToPort(_rs));
+			*rspin = 0;
+			// Pass 1, now lets set hwSPI false
+			hwSPI = false;
 		}
 		// Hack to get hold of the SPI Hardware information... 
 	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
