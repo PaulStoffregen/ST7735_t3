@@ -36,6 +36,10 @@ volatile short _dma_dummy_rx;
 
 ST7735_t3 *ST7735_t3::_dmaActiveDisplay[3] = {0, 0, 0};
 
+#if defined(__MK66FX1M0__) 
+ DMASetting   ST7735_t3::_dmasettings[3][4];
+#endif
+
 #if defined(__IMXRT1062__)  // Teensy 4.x
 // On T4 Setup the buffers to be used one per SPI buss... 
 // This way we make sure it is hopefully in uncached memory
@@ -1458,35 +1462,35 @@ void	ST7735_t3::initDMASettings(void)
 	//Serial.printf("CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, count_words_write);
 	// Now lets setup DMA access to this memory... 
 	_cnt_dma_settings = cnt_dma_settings;	// save away code that needs to update
-	_dmasettings[0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
-	_dmasettings[0].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
+	_dmasettings[_spi_num][0].destination(_pkinetisk_spi->PUSHR);
 
 	// Hack to reset the destination to only output 2 bytes.
-	_dmasettings[0].TCD->ATTR_DST = 1;
-	_dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+	_dmasettings[_spi_num][0].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][0].replaceSettingsOnCompletion(_dmasettings[_spi_num][1]);
 
-	_dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
-	_dmasettings[1].destination(_pkinetisk_spi->PUSHR);
-	_dmasettings[1].TCD->ATTR_DST = 1;
-	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+	_dmasettings[_spi_num][1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
+	_dmasettings[_spi_num][1].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][1].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][1].replaceSettingsOnCompletion(_dmasettings[_spi_num][2]);
 
 	if (cnt_dma_settings == 3) {
-		_dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
-		_dmasettings[2].destination(_pkinetisk_spi->PUSHR);
-		_dmasettings[2].TCD->ATTR_DST = 1;
-		_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);		
+		_dmasettings[_spi_num][2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
+		_dmasettings[_spi_num][2].destination(_pkinetisk_spi->PUSHR);
+		_dmasettings[_spi_num][2].TCD->ATTR_DST = 1;
+		_dmasettings[_spi_num][2].replaceSettingsOnCompletion(_dmasettings[_spi_num][3]);		
 	}
 	// Sort of hack - but wrap around to output the first word again. 
-	_dmasettings[cnt_dma_settings].sourceBuffer(_pfbtft, 2);
-	_dmasettings[cnt_dma_settings].destination(_pkinetisk_spi->PUSHR);
-	_dmasettings[cnt_dma_settings].TCD->ATTR_DST = 1;
-	_dmasettings[cnt_dma_settings].replaceSettingsOnCompletion(_dmasettings[0]);
+	_dmasettings[_spi_num][cnt_dma_settings].sourceBuffer(_pfbtft, 2);
+	_dmasettings[_spi_num][cnt_dma_settings].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][cnt_dma_settings].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][cnt_dma_settings].replaceSettingsOnCompletion(_dmasettings[_spi_num][0]);
 
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
 	_dmatx.begin(true);
 	_dmatx.triggerAtHardwareEvent(dmaTXevent);
-	_dmatx = _dmasettings[0];
+	_dmatx = _dmasettings[_spi_num][0];
 	// probably could use const table of functio_ns...
 	if (_spi_num == 0) _dmatx.attachInterrupt(dmaInterrupt);
 	else if (_spi_num == 1) _dmatx.attachInterrupt(dmaInterrupt1);
@@ -1582,10 +1586,10 @@ void ST7735_t3::dumpDMASettings() {
 	// T3.6
 	Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dmatx);
-	dumpDMA_TCD(&_dmasettings[0]);
-	dumpDMA_TCD(&_dmasettings[1]);
-	dumpDMA_TCD(&_dmasettings[2]);
-	dumpDMA_TCD(&_dmasettings[3]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][0]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][1]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][2]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][3]);
 #elif defined(__IMXRT1062__)  // Teensy 4.x
 	// Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dma_data[_spi_num]._dmatx);
@@ -1605,8 +1609,9 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// Not sure if better here to check flag or check existence of buffer.
 	// Will go by buffer as maybe can do interesting things?
 	// BUGBUG:: only handles full screen so bail on the rest of it...
+	// Also bail if we are working with a hardware SPI port. 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
-	if (!_use_fbtft) return false;
+	if (!_use_fbtft || !_pspi) return false;
 
 
 	#if defined(__MK64FX512__) || defined(__MK20DX256__)  // If T3.5 only allow on SPI...
@@ -1643,16 +1648,16 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	//==========================================
 	if (update_cont) {
 		// Try to link in #3 into the chain (_cnt_dma_settings)
-		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_cnt_dma_settings]);
-		_dmasettings[_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
-		_dmasettings[_cnt_dma_settings].interruptAtCompletion();
-		_dmasettings[_cnt_dma_settings].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
+		_dmasettings[_spi_num][_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_spi_num][_cnt_dma_settings]);
+		_dmasettings[_spi_num][_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
+		_dmasettings[_spi_num][_cnt_dma_settings].interruptAtCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
 		_dma_state |= ST77XX_DMA_CONT;
 	} else {
 		// In this case we will only run through once...
-		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[0]);
-		_dmasettings[_cnt_dma_settings-1].interruptAtCompletion();
-		_dmasettings[_cnt_dma_settings-1].disableOnCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_spi_num][0]);
+		_dmasettings[_spi_num][_cnt_dma_settings-1].interruptAtCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings-1].disableOnCompletion();
 		_dma_state &= ~ST77XX_DMA_CONT;
 	}
 
@@ -1803,7 +1808,7 @@ void ST7735_t3::endUpdateAsync() {
 	if (_dma_state & ST77XX_DMA_CONT) {
 		_dma_state &= ~ST77XX_DMA_CONT; // Turn of the continueous mode
 #if defined(__MK66FX1M0__) 
-		_dmasettings[_cnt_dma_settings].disableOnCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings].disableOnCompletion();
 #endif
 	}
 	#endif
