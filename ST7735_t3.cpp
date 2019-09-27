@@ -36,6 +36,10 @@ volatile short _dma_dummy_rx;
 
 ST7735_t3 *ST7735_t3::_dmaActiveDisplay[3] = {0, 0, 0};
 
+#if defined(__MK66FX1M0__) 
+ DMASetting   ST7735_t3::_dmasettings[3][4];
+#endif
+
 #if defined(__IMXRT1062__)  // Teensy 4.x
 // On T4 Setup the buffers to be used one per SPI buss... 
 // This way we make sure it is hopefully in uncached memory
@@ -133,11 +137,28 @@ inline void ST7735_t3::waitTransmitComplete(uint32_t mcr) {
 
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
+	// pass 1 if we actually are setup to with MOSI and SCLK on hardware SPI use it...
+	if (_pspi) {
+		_pspi->transfer(c);
+		return;
+	}
+
 	for (uint8_t bit = 0x80; bit; bit >>= 1) {
 		*datapin = ((c & bit) ? 1 : 0);
 		*clkpin = 1;
 		*clkpin = 0;
 	}
+}
+
+inline void ST7735_t3::spiwrite16(uint16_t d)
+{
+	// pass 1 if we actually are setup to with MOSI and SCLK on hardware SPI use it...
+	if (_pspi) {
+		_pspi->transfer16(d);
+		return;
+	}
+	spiwrite(d >> 8);
+	spiwrite(d);
 }
 
 void ST7735_t3::writecommand(uint8_t c)
@@ -147,16 +168,19 @@ void ST7735_t3::writecommand(uint8_t c)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 0;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
 void ST7735_t3::writecommand_last(uint8_t c) {
-	uint32_t mcr = _pkinetisk_spi->MCR;
-	_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
-	waitTransmitComplete(mcr);
+	if (hwSPI) {
+		uint32_t mcr = _pkinetisk_spi->MCR;
+		_pkinetisk_spi->PUSHR = c | (pcs_command << 16) | SPI_PUSHR_CTAS(0) | SPI_PUSHR_EOQ;
+		waitTransmitComplete(mcr);
+	} else {
+		*rspin = 0;
+		spiwrite(c);
+	}
 }
 
 void ST7735_t3::writedata(uint8_t c)
@@ -166,9 +190,7 @@ void ST7735_t3::writedata(uint8_t c)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -180,9 +202,7 @@ void ST7735_t3::writedata_last(uint8_t c)
 		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 1;
-		*cspin = 0;
 		spiwrite(c);
-		*cspin = 1;
 	}
 }
 
@@ -193,13 +213,9 @@ void ST7735_t3::writedata16(uint16_t d)
 		while (((_pkinetisk_spi->SR) & (15 << 12)) > _fifo_full_test) ; // wait if FIFO full
 	} else {
 		*rspin = 1;
-		*cspin = 0;
-		spiwrite(d >> 8);
-		spiwrite(d);
-		*cspin = 1;
+		spiwrite16(d);
 	}
 }
-
 
 
 void ST7735_t3::writedata16_last(uint16_t d)
@@ -210,8 +226,7 @@ void ST7735_t3::writedata16_last(uint16_t d)
 		waitTransmitComplete(mcr);
 	} else {
 		*rspin = 1;
-		spiwrite(d >> 8);
-		spiwrite(d);
+		spiwrite16(d);
 	}
 }
 
@@ -643,7 +658,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	if (_sid == (uint8_t)-1) _sid = 11;
 	if (_sclk == (uint8_t)-1) _sclk = 13;
 
-	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
+	// Lets try to handle cases where DC is not hardware, without going all the way down to bit bang!
+	//if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk) && SPI.pinIsChipSelect(_rs)) {
+	if (SPI.pinIsMOSI(_sid) && SPI.pinIsSCK(_sclk)) {
 		_pspi = &SPI;
 		_spi_num = 0;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI0;  // Could hack our way to grab this from SPI object, but...
@@ -651,14 +668,14 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		//Serial.println("ST7735_t3::commonInit SPI");
 
     #if  defined(__MK64FX512__) || defined(__MK66FX1M0__)
-	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk) && SPI1.pinIsChipSelect(_rs)) {
+	} else if (SPI1.pinIsMOSI(_sid) && SPI1.pinIsSCK(_sclk)) {
 		_pspi = &SPI1;
 		_spi_num = 1;          // Which buss is this spi on? 
 
 		_pkinetisk_spi = &KINETISK_SPI1;
 		_fifo_full_test = (0 << 12);
 		//Serial.println("ST7735_t3::commonInit SPI1");
-	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk) && SPI2.pinIsChipSelect(_rs)) {
+	} else if (SPI2.pinIsMOSI(_sid) && SPI2.pinIsSCK(_sclk)) {
 		_pspi = &SPI2;
 		_spi_num = 2;          // Which buss is this spi on? 
 		_pkinetisk_spi = &KINETISK_SPI2;
@@ -680,7 +697,8 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 			pcs_command = pcs_data | _pspi->setCS(_rs);
 			cspin = 0; // Let know that we are not setting manual
 			//Serial.println("Both CS and DC are SPI pins");
-		} else {
+		// See if at least DC is hardware CS... 	
+		} else if (_pspi->pinIsChipSelect(_rs)) {
 			// We already verified that _rs was valid CS pin above.
 			pcs_data = 0;
 			pcs_command = pcs_data | _pspi->setCS(_rs);
@@ -689,12 +707,28 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 				cspin = portOutputRegister(digitalPinToPort(_cs));
 				*cspin = 1;
 			}
+		} else {
+			// DC is not, and won't bother to check CS... 
+			pcs_data = 0;
+			pcs_command = 0;
+			if (_cs != 0xff) {
+				pinMode(_cs, OUTPUT);
+				cspin = portOutputRegister(digitalPinToPort(_cs));
+				*cspin = 1;
+			}
+			pinMode(_rs, OUTPUT);
+			rspin = portOutputRegister(digitalPinToPort(_rs));
+			*rspin = 0;
+			// Pass 1, now lets set hwSPI false
+			hwSPI = false;
 		}
 		// Hack to get hold of the SPI Hardware information... 
 	 	uint32_t *pa = (uint32_t*)((void*)_pspi);
 		_spi_hardware = (SPIClass::SPI_Hardware_t*)(void*)pa[1];
 	} else {
+		//Serial.println("ST7735_t3::commonInit Software SPI :(");
 		hwSPI = false;
+		_pspi = nullptr;
 		cspin = (_cs != 0xff)? portOutputRegister(digitalPinToPort(_cs)) : 0;
 		rspin = portOutputRegister(digitalPinToPort(_rs));
 		clkpin = portOutputRegister(digitalPinToPort(_sclk));
@@ -2803,9 +2837,7 @@ void ST7735_t3::drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32
 }
 
 
-///
-///
-///
+
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
 void ST7735_t3::dmaInterrupt(void) {
 	if (_dmaActiveDisplay[0])  {
@@ -3094,7 +3126,6 @@ void	ST7735_t3::initDMASettings(void)
 #if defined(__MK66FX1M0__) 
     uint8_t  cnt_dma_settings = 2;   // how many do we need for this display?
 	uint32_t COUNT_WORDS_WRITE = (_count_pixels) / 2;
-
 	// The 240x320 display requires us to expand to another DMA setting. 
 	if (COUNT_WORDS_WRITE >= 32768) {
 		COUNT_WORDS_WRITE = (_count_pixels) / 3;
@@ -3104,35 +3135,35 @@ void	ST7735_t3::initDMASettings(void)
 	//Serial.printf("CWW: %d %d %d\n", CBALLOC, SCREEN_DMA_NUM_SETTINGS, count_words_write);
 	// Now lets setup DMA access to this memory... 
 	_cnt_dma_settings = cnt_dma_settings;	// save away code that needs to update
-	_dmasettings[0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
-	_dmasettings[0].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][0].sourceBuffer(&_pfbtft[1], (COUNT_WORDS_WRITE-1)*2);
+	_dmasettings[_spi_num][0].destination(_pkinetisk_spi->PUSHR);
 
 	// Hack to reset the destination to only output 2 bytes.
-	_dmasettings[0].TCD->ATTR_DST = 1;
-	_dmasettings[0].replaceSettingsOnCompletion(_dmasettings[1]);
+	_dmasettings[_spi_num][0].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][0].replaceSettingsOnCompletion(_dmasettings[_spi_num][1]);
 
-	_dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
-	_dmasettings[1].destination(_pkinetisk_spi->PUSHR);
-	_dmasettings[1].TCD->ATTR_DST = 1;
-	_dmasettings[1].replaceSettingsOnCompletion(_dmasettings[2]);
+	_dmasettings[_spi_num][1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE], COUNT_WORDS_WRITE*2);
+	_dmasettings[_spi_num][1].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][1].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][1].replaceSettingsOnCompletion(_dmasettings[_spi_num][2]);
 
 	if (cnt_dma_settings == 3) {
-		_dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
-		_dmasettings[2].destination(_pkinetisk_spi->PUSHR);
-		_dmasettings[2].TCD->ATTR_DST = 1;
-		_dmasettings[2].replaceSettingsOnCompletion(_dmasettings[3]);		
+		_dmasettings[_spi_num][2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE*2], COUNT_WORDS_WRITE*2);
+		_dmasettings[_spi_num][2].destination(_pkinetisk_spi->PUSHR);
+		_dmasettings[_spi_num][2].TCD->ATTR_DST = 1;
+		_dmasettings[_spi_num][2].replaceSettingsOnCompletion(_dmasettings[_spi_num][3]);		
 	}
 	// Sort of hack - but wrap around to output the first word again. 
-	_dmasettings[cnt_dma_settings].sourceBuffer(_pfbtft, 2);
-	_dmasettings[cnt_dma_settings].destination(_pkinetisk_spi->PUSHR);
-	_dmasettings[cnt_dma_settings].TCD->ATTR_DST = 1;
-	_dmasettings[cnt_dma_settings].replaceSettingsOnCompletion(_dmasettings[0]);
+	_dmasettings[_spi_num][cnt_dma_settings].sourceBuffer(_pfbtft, 2);
+	_dmasettings[_spi_num][cnt_dma_settings].destination(_pkinetisk_spi->PUSHR);
+	_dmasettings[_spi_num][cnt_dma_settings].TCD->ATTR_DST = 1;
+	_dmasettings[_spi_num][cnt_dma_settings].replaceSettingsOnCompletion(_dmasettings[_spi_num][0]);
 
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
 	_dmatx.begin(true);
 	_dmatx.triggerAtHardwareEvent(dmaTXevent);
-	_dmatx = _dmasettings[0];
+	_dmatx = _dmasettings[_spi_num][0];
 	// probably could use const table of functio_ns...
 	if (_spi_num == 0) _dmatx.attachInterrupt(dmaInterrupt);
 	else if (_spi_num == 1) _dmatx.attachInterrupt(dmaInterrupt1);
@@ -3228,10 +3259,10 @@ void ST7735_t3::dumpDMASettings() {
 	// T3.6
 	Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dmatx);
-	dumpDMA_TCD(&_dmasettings[0]);
-	dumpDMA_TCD(&_dmasettings[1]);
-	dumpDMA_TCD(&_dmasettings[2]);
-	dumpDMA_TCD(&_dmasettings[3]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][0]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][1]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][2]);
+	dumpDMA_TCD(&_dmasettings[_spi_num][3]);
 #elif defined(__IMXRT1062__)  // Teensy 4.x
 	// Serial.printf("DMA dump TCDs %d\n", _dmatx.channel);
 	dumpDMA_TCD(&_dma_data[_spi_num]._dmatx);
@@ -3251,8 +3282,9 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// Not sure if better here to check flag or check existence of buffer.
 	// Will go by buffer as maybe can do interesting things?
 	// BUGBUG:: only handles full screen so bail on the rest of it...
+	// Also bail if we are working with a hardware SPI port. 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
-	if (!_use_fbtft) return false;
+	if (!_use_fbtft || !_pspi) return false;
 
 
 	#if defined(__MK64FX512__) || defined(__MK20DX256__)  // If T3.5 only allow on SPI...
@@ -3289,16 +3321,16 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	//==========================================
 	if (update_cont) {
 		// Try to link in #3 into the chain (_cnt_dma_settings)
-		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_cnt_dma_settings]);
-		_dmasettings[_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
-		_dmasettings[_cnt_dma_settings].interruptAtCompletion();
-		_dmasettings[_cnt_dma_settings].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
+		_dmasettings[_spi_num][_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_spi_num][_cnt_dma_settings]);
+		_dmasettings[_spi_num][_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_INTMAJOR | DMA_TCD_CSR_DREQ);  // Don't interrupt on this one... 
+		_dmasettings[_spi_num][_cnt_dma_settings].interruptAtCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);  // Don't disable on this one  
 		_dma_state |= ST77XX_DMA_CONT;
 	} else {
 		// In this case we will only run through once...
-		_dmasettings[_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[0]);
-		_dmasettings[_cnt_dma_settings-1].interruptAtCompletion();
-		_dmasettings[_cnt_dma_settings-1].disableOnCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings-1].replaceSettingsOnCompletion(_dmasettings[_spi_num][0]);
+		_dmasettings[_spi_num][_cnt_dma_settings-1].interruptAtCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings-1].disableOnCompletion();
 		_dma_state &= ~ST77XX_DMA_CONT;
 	}
 
@@ -3449,7 +3481,7 @@ void ST7735_t3::endUpdateAsync() {
 	if (_dma_state & ST77XX_DMA_CONT) {
 		_dma_state &= ~ST77XX_DMA_CONT; // Turn of the continueous mode
 #if defined(__MK66FX1M0__) 
-		_dmasettings[_cnt_dma_settings].disableOnCompletion();
+		_dmasettings[_spi_num][_cnt_dma_settings].disableOnCompletion();
 #endif
 	}
 	#endif

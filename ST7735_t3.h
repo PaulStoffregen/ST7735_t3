@@ -371,6 +371,7 @@ class ST7735_t3 : public Print
   uint8_t  tabcolor;
 
   void     spiwrite(uint8_t),
+  		   spiwrite16(uint16_t d),
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
@@ -577,7 +578,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 
   #if defined(__MK66FX1M0__) 
   // T3.6 use Scatter/gather with chain to do transfer
-  DMASetting   _dmasettings[4];
+  static DMASetting   _dmasettings[3][4];
   DMAChannel   _dmatx;
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
   #elif defined(__IMXRT1062__)  // Teensy 4.x
