@@ -152,6 +152,32 @@ typedef struct {
 	unsigned char cap_height;
 } ST7735_t3_font_t;
 
+// Lets see about supporting Adafruit fonts as well?
+#ifndef _GFXFONT_H_
+#define _GFXFONT_H_
+
+/// Font data stored PER GLYPH
+typedef struct {
+	uint16_t bitmapOffset;     ///< Pointer into GFXfont->bitmap
+	uint8_t  width;            ///< Bitmap dimensions in pixels
+        uint8_t  height;           ///< Bitmap dimensions in pixels
+	uint8_t  xAdvance;         ///< Distance to advance cursor (x axis)
+	int8_t   xOffset;          ///< X dist from cursor pos to UL corner
+        int8_t   yOffset;          ///< Y dist from cursor pos to UL corner
+} GFXglyph;
+
+/// Data stored for FONT AS A WHOLE
+typedef struct { 
+	uint8_t  *bitmap;      ///< Glyph bitmaps, concatenated
+	GFXglyph *glyph;       ///< Glyph array
+	uint8_t   first;       ///< ASCII extents (first char)
+        uint8_t   last;        ///< ASCII extents (last char)
+	uint8_t   yAdvance;    ///< Newline distance (y axis)
+} GFXfont;
+
+#endif // _GFXFONT_H_
+
+
 #ifndef swap
 #define swap(a, b) { typeof(a) t = a; a = b; b = t; }
 #endif
@@ -259,9 +285,10 @@ class ST7735_t3 : public Print
 	int16_t getCursorX(void) const { return cursor_x; }
 	int16_t getCursorY(void) const { return cursor_y; }
 	void setFont(const ST7735_t3_font_t &f);
-	void setFont() { font = NULL; }
-	void setFontAdafruit(void) { font = NULL; }
+    void setFont(const GFXfont *f = NULL);
+	void setFontAdafruit(void) { setFont(); }
 	void drawFontChar(unsigned int c);
+	void drawGFXFontChar(unsigned int c);
 	int16_t strPixelLen(char * str);
 	
 	// added support for drawing strings/numbers/floats with centering
@@ -413,6 +440,7 @@ class ST7735_t3 : public Print
 	uint8_t textsize, rotation, textdatum;
 	boolean wrap; // If set, 'wrap' text at right edge of display
 	const ST7735_t3_font_t *font;
+	const GFXfont *gfxFont = nullptr;
 	// Anti-aliased font support
 	uint8_t fontbpp = 1;
 	uint8_t fontbppindex = 0;

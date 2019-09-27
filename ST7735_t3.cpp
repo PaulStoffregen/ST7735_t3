@@ -1943,6 +1943,17 @@ size_t ST7735_t3::write(uint8_t c)
 		} else {
 			drawFontChar(c);
 		}
+	} else if (gfxFont)  {
+		if (c == '\n') {
+            cursor_y += (int16_t)textsize * gfxFont->yAdvance;
+			if(scrollEnable && isWritingScrollArea){
+				cursor_x  = scroll_x;
+			}else{
+				cursor_x  = 0;
+			}
+		} else {
+			drawGFXFontChar(c);
+		}
 	} else {
 		if (c == '\n') {
 			cursor_y += textsize*8;
@@ -2175,6 +2186,10 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 
 void ST7735_t3::setFont(const ST7735_t3_font_t &f) {
 	font = &f;
+	if (gfxFont) {
+        cursor_y -= 6;
+		gfxFont = NULL;
+	}
 	fontbpp = 1;
 	// Calculate additional metrics for Anti-Aliased font support (BDF extn v2.3)
 	if (font && font->version==23){
@@ -2186,6 +2201,23 @@ void ST7735_t3::setFont(const ST7735_t3_font_t &f) {
 		// Ensure text and bg color are different. Note: use setTextColor to set actual bg color
 		if (textcolor == textbgcolor) textbgcolor = (textcolor==0x0000)?0xFFFF:0x0000;
 	}
+}
+
+// Maybe support GFX Fonts as well?
+void ST7735_t3::setFont(const GFXfont *f) {
+	font = NULL;	// turn off the other font... 
+    if(f) {            // Font struct pointer passed in?
+        if(!gfxFont) { // And no current font struct?
+            // Switching from classic to new font behavior.
+            // Move cursor pos down 6 pixels so it's on baseline.
+            //cursor_y += 6;
+        }
+    } else if(gfxFont) { // NULL passed.  Current font struct defined?
+        // Switching from new to classic font behavior.
+        // Move cursor pos up 6 pixels so it's at top-left of char.
+        //cursor_y -= 6;
+    }
+    gfxFont = f;
 }
 
 static uint32_t fetchbit(const uint8_t *p, uint32_t index)
@@ -2836,6 +2868,76 @@ void ST7735_t3::drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32
 	}
 }
 
+void ST7735_t3::drawGFXFontChar(unsigned int c) {
+	// Lets do Adafruit GFX character output here as well
+    if(c == '\r') 	 return;
+
+    // Some quick and dirty tests to see if we can
+    uint8_t first = gfxFont->first;
+    if((c < first) || (c > gfxFont->last)) return; 
+
+    GFXglyph *glyph  = gfxFont->glyph + (c - first);
+    uint8_t   w     = glyph->width,
+              h     = glyph->height;
+    if((w == 0) || (h == 0))  return;  // Is there an associated bitmap?
+
+    int16_t xo = glyph->xOffset; // sic
+    int16_t yo = glyph->yOffset;
+
+    if(wrap && ((cursor_x + textsize * (xo + w)) > _width)) {
+        cursor_x  = 0;
+        cursor_y += (int16_t)textsize * gfxFont->yAdvance;
+    }
+
+    // Lets do the work to output the font character
+    uint8_t  *bitmap = gfxFont->bitmap;
+
+    uint16_t bo = glyph->bitmapOffset;
+    uint8_t  xx, yy, bits = 0, bit = 0;
+    int16_t  xo16 = 0, yo16 = 0;
+
+    if(textsize) {
+        xo16 = xo;
+        yo16 = yo;
+    }
+
+    // Todo: Add character clipping here
+
+    // NOTE: THERE IS NO 'BACKGROUND' COLOR OPTION ON CUSTOM FONTS.
+    // THIS IS ON PURPOSE AND BY DESIGN.  The background color feature
+    // has typically been used with the 'classic' font to overwrite old
+    // screen contents with new data.  This ONLY works because the
+    // characters are a uniform size; it's not a sensible thing to do with
+    // proportionally-spaced fonts with glyphs of varying sizes (and that
+    // may overlap).  To replace previously-drawn text when using a custom
+    // font, use the getTextBounds() function to determine the smallest
+    // rectangle encompassing a string, erase the area with fillRect(),
+    // then draw new text.  This WILL infortunately 'blink' the text, but
+    // is unavoidable.  Drawing 'background' pixels will NOT fix this,
+    // only creates a new set of problems.  Have an idea to work around
+    // this (a canvas object type for MCUs that can afford the RAM and
+    // displays supporting setAddrWindow() and pushColors()), but haven't
+    // implemented this yet.
+
+    for(yy=0; yy<h; yy++) {
+        for(xx=0; xx<w; xx++) {
+            if(!(bit++ & 7)) {
+                bits = bitmap[bo++];
+            }
+            if(bits & 0x80) {
+                if(textsize == 1) {
+                    drawPixel(cursor_x+xo+xx, cursor_y+yo+yy, textcolor);
+                } else {
+                fillRect(cursor_x+(xo16+xx)*textsize, cursor_y+(yo16+yy)*textsize,
+                      textsize, textsize, textcolor);
+                }
+            }
+            bits <<= 1;
+        }
+    }
+
+    cursor_x += glyph->xAdvance * (int16_t)textsize;
+}
 
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
