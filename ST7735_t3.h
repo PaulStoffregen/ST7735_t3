@@ -160,10 +160,10 @@ typedef struct {
 typedef struct {
 	uint16_t bitmapOffset;     ///< Pointer into GFXfont->bitmap
 	uint8_t  width;            ///< Bitmap dimensions in pixels
-        uint8_t  height;           ///< Bitmap dimensions in pixels
+    uint8_t  height;           ///< Bitmap dimensions in pixels
 	uint8_t  xAdvance;         ///< Distance to advance cursor (x axis)
 	int8_t   xOffset;          ///< X dist from cursor pos to UL corner
-        int8_t   yOffset;          ///< Y dist from cursor pos to UL corner
+    int8_t   yOffset;          ///< Y dist from cursor pos to UL corner
 } GFXglyph;
 
 /// Data stored for FONT AS A WHOLE
@@ -171,7 +171,7 @@ typedef struct {
 	uint8_t  *bitmap;      ///< Glyph bitmaps, concatenated
 	GFXglyph *glyph;       ///< Glyph array
 	uint8_t   first;       ///< ASCII extents (first char)
-        uint8_t   last;        ///< ASCII extents (last char)
+    uint8_t   last;        ///< ASCII extents (last char)
 	uint8_t   yAdvance;    ///< Newline distance (y axis)
 } GFXfont;
 
@@ -269,13 +269,18 @@ class ST7735_t3 : public Print
 	void drawBitmap(int16_t x, int16_t y, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color);
 	void drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
 	void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
-	void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
+	void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size_x, uint8_t size_y);
+	void inline drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size) 
+	    { drawChar(x, y, c, color, bg, size);}
 	
 	void setCursor(int16_t x, int16_t y);
     void getCursor(int16_t *x, int16_t *y);
 	void setTextColor(uint16_t c);
 	void setTextColor(uint16_t c, uint16_t bg);
-	void setTextSize(uint8_t s);
+    void setTextSize(uint8_t sx, uint8_t sy);
+	void inline setTextSize(uint8_t s) { setTextSize(s,s); }
+	uint8_t getTextSizeX();
+	uint8_t getTextSizeY();
 	uint8_t getTextSize();
 	void setTextWrap(boolean w);
 	boolean getTextWrap();
@@ -289,8 +294,13 @@ class ST7735_t3 : public Print
 	void setFontAdafruit(void) { setFont(); }
 	void drawFontChar(unsigned int c);
 	void drawGFXFontChar(unsigned int c);
-	int16_t strPixelLen(char * str);
-	
+
+    void getTextBounds(const char *string, int16_t x, int16_t y,
+      int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
+    void getTextBounds(const String &str, int16_t x, int16_t y,
+      int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
+	int16_t strPixelLen(const char * str);
+
 	// added support for drawing strings/numbers/floats with centering
 	// modified from tft_ili9341_ESP github library
 	// Handle numbers
@@ -407,6 +417,8 @@ class ST7735_t3 : public Print
            writedata16_last(uint16_t d),
            commandList(const uint8_t *addr),
            commonInit(const uint8_t *cmdList, uint8_t mode=SPI_MODE0);
+  void charBounds(char c, int16_t *x, int16_t *y,
+      			int16_t *minx, int16_t *miny, int16_t *maxx, int16_t *maxy);
 //uint8_t  spiread(void);
 
   boolean  hwSPI;
@@ -437,7 +449,7 @@ class ST7735_t3 : public Print
 
 	uint16_t textcolor, textbgcolor, scrollbgcolor;
 	uint32_t textcolorPrexpanded, textbgcolorPrexpanded;
-	uint8_t textsize, rotation, textdatum;
+	uint8_t textsize_x, textsize_y, rotation, textdatum;
 	boolean wrap; // If set, 'wrap' text at right edge of display
 	const ST7735_t3_font_t *font;
 	const GFXfont *gfxFont = nullptr;

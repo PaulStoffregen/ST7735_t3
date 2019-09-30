@@ -37,7 +37,8 @@ ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t 
   _screenWidth = 240;   
   
 	cursor_y  = cursor_x    = 0;
-	textsize  = 1;
+	textsize_x  = 1;
+  textsize_y  = 1;
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
@@ -53,7 +54,8 @@ ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) :
   _screenWidth = 240; 
 
 	cursor_y  = cursor_x    = 0;
-	textsize  = 1;
+	textsize_x  = 1;
+  textsize_y  = 1;
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
@@ -167,7 +169,7 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
   commandList(cmd_st7789);
   setRotation(0);
   cursor_y  = cursor_x    = 0;
-  textsize  = 1;
+  textsize_x = textsize_y = 1;
   textcolor = textbgcolor = 0xFFFF;
   wrap      = true;
   font      = NULL;

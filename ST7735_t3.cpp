@@ -71,7 +71,8 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	_height = _screenHeight;
 	
 	cursor_y  = cursor_x    = 0;
-	textsize  = 1;
+	textsize_x  = 1;
+	textsize_y  = 1;
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
@@ -100,7 +101,8 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst)
 	_screenWidth = ST7735_TFTWIDTH;
 
 	cursor_y  = cursor_x    = 0;
-	textsize  = 1;
+	textsize_x  = 1;
+	textsize_y  = 1;
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
@@ -1675,12 +1677,20 @@ void ST7735_t3::getCursor(int16_t *x, int16_t *y) {
   *y = cursor_y;
 }
 
-void ST7735_t3::setTextSize(uint8_t s) {
-  textsize = (s > 0) ? s : 1;
+void ST7735_t3::setTextSize(uint8_t s_x, uint8_t s_y) {
+    textsize_x = (s_x > 0) ? s_x : 1;
+    textsize_y = (s_y > 0) ? s_y : 1;
 }
 
 uint8_t ST7735_t3::getTextSize() {
-	return textsize;
+	return textsize_x;	// bug bug 2 values now
+}
+
+uint8_t ST7735_t3::getTextSizeX() {
+	return textsize_x;
+}
+uint8_t ST7735_t3::getTextSizeY() {
+	return textsize_y;
 }
 
 void ST7735_t3::setTextColor(uint16_t c) {
@@ -1815,7 +1825,7 @@ int16_t ST7735_t3::drawString1(char string[], int16_t len, int poX, int poY)
   uint8_t padding = 1/*, baseline = 0*/;
   
   uint16_t cwidth = strPixelLen(string); // Find the pixel width of the string in the font
-  uint16_t cheight = textsize*8;
+  uint16_t cheight = textsize_y*8;
 
   
   if (textdatum || padX)
@@ -1882,7 +1892,7 @@ int16_t ST7735_t3::drawString1(char string[], int16_t len, int poX, int poY)
   }
   if(font == NULL){
 	  for(uint8_t i = 0; i < len-2; i++){
-		drawChar((int16_t) (poX+sumX), (int16_t) poY, string[i], textcolor, textbgcolor, textsize);
+		drawChar((int16_t) (poX+sumX), (int16_t) poY, string[i], textcolor, textbgcolor, textsize_x, textsize_y);
 		sumX += cwidth/(len-2) + padding;
 	  }
   } else {
@@ -1945,7 +1955,7 @@ size_t ST7735_t3::write(uint8_t c)
 		}
 	} else if (gfxFont)  {
 		if (c == '\n') {
-            cursor_y += (int16_t)textsize * gfxFont->yAdvance;
+            cursor_y += (int16_t)textsize_y * gfxFont->yAdvance;
 			if(scrollEnable && isWritingScrollArea){
 				cursor_x  = scroll_x;
 			}else{
@@ -1956,7 +1966,7 @@ size_t ST7735_t3::write(uint8_t c)
 		}
 	} else {
 		if (c == '\n') {
-			cursor_y += textsize*8;
+			cursor_y += textsize_y*8;
 			if(scrollEnable && isWritingScrollArea){
 				cursor_x  = scroll_x;
 			}else{
@@ -1965,19 +1975,19 @@ size_t ST7735_t3::write(uint8_t c)
 		} else if (c == '\r') {
 			// skip em
 		} else {
-			if(scrollEnable && isWritingScrollArea && (cursor_y > (scroll_y+scroll_height - textsize*8))){
-				scrollTextArea(textsize*8);
-				cursor_y -= textsize*8;
+			if(scrollEnable && isWritingScrollArea && (cursor_y > (scroll_y+scroll_height - textsize_y*8))){
+				scrollTextArea(textsize_y*8);
+				cursor_y -= textsize_y*8;
 				cursor_x = scroll_x;
 			}
-			drawChar(cursor_x, cursor_y, c, textcolor, textbgcolor, textsize);
-			cursor_x += textsize*6;
-			if(wrap && scrollEnable && isWritingScrollArea && (cursor_x > (scroll_x+scroll_width - textsize*6))){
-				cursor_y += textsize*8;
+			drawChar(cursor_x, cursor_y, c, textcolor, textbgcolor, textsize_x, textsize_y);
+			cursor_x += textsize_x*6;
+			if(wrap && scrollEnable && isWritingScrollArea && (cursor_x > (scroll_x+scroll_width - textsize_x*6))){
+				cursor_y += textsize_y*8;
 				cursor_x = scroll_x;
 			}
-			else if (wrap && (cursor_x > (_width - textsize*6))) {
-				cursor_y += textsize*8;
+			else if (wrap && (cursor_x > (_width - textsize_x*6))) {
+				cursor_y += textsize_y*8;
 				cursor_x = 0;
 			}
 		}
@@ -1987,17 +1997,17 @@ size_t ST7735_t3::write(uint8_t c)
 
 // Draw a character
 void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
-			    uint16_t fgcolor, uint16_t bgcolor, uint8_t size)
+			    uint16_t fgcolor, uint16_t bgcolor, uint8_t size_x, uint8_t size_y)
 {
 	if((x >= _width)            || // Clip right
 	   (y >= _height)           || // Clip bottom
-	   ((x + 6 * size - 1) < 0) || // Clip left  TODO: is this correct?
-	   ((y + 8 * size - 1) < 0))   // Clip top   TODO: is this correct?
+	   ((x + 6 * size_x - 1) < 0) || // Clip left  TODO: is this correct?
+	   ((y + 8 * size_y - 1) < 0))   // Clip top   TODO: is this correct?
 		return;
 
 	if (fgcolor == bgcolor) {
 		// This transparent approach is only about 20% faster
-		if (size == 1) {
+		if ((size_x == 1) && (size_y == 1)) {
 			uint8_t mask = 0x01;
 			int16_t xoff, yoff;
 			for (yoff=0; yoff < 8; yoff++) {
@@ -2047,26 +2057,26 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 				xoff = 0;
 				while (line) {
 					if (line == 0x1F) {
-						fillRect(x + xoff * size, y + yoff * size,
-							5 * size, size, fgcolor);
+						fillRect(x + xoff * size_x, y + yoff * size_y,
+							5 * size_x, size_y, fgcolor);
 						break;
 					} else if (line == 0x1E) {
-						fillRect(x + xoff * size, y + yoff * size,
-							4 * size, size, fgcolor);
+						fillRect(x + xoff * size_x, y + yoff * size_y,
+							4 * size_x, size_y, fgcolor);
 						break;
 					} else if ((line & 0x1C) == 0x1C) {
-						fillRect(x + xoff * size, y + yoff * size,
-							3 * size, size, fgcolor);
+						fillRect(x + xoff * size_x, y + yoff * size_y,
+							3 * size_x, size_y, fgcolor);
 						line <<= 4;
 						xoff += 4;
 					} else if ((line & 0x18) == 0x18) {
-						fillRect(x + xoff * size, y + yoff * size,
-							2 * size, size, fgcolor);
+						fillRect(x + xoff * size_x, y + yoff * size_y,
+							2 * size_x, size_y, fgcolor);
 						line <<= 3;
 						xoff += 3;
 					} else if ((line & 0x10) == 0x10) {
-						fillRect(x + xoff * size, y + yoff * size,
-							size, size, fgcolor);
+						fillRect(x + xoff * size_x, y + yoff * size_y,
+							size_x, size_y, fgcolor);
 						line <<= 2;
 						xoff += 2;
 					} else {
@@ -2091,8 +2101,8 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 
 		if((x >= _displayclipx2)            || // Clip right
 			 (y >= _displayclipy2)           || // Clip bottom
-			 ((x + 6 * size - 1) < _displayclipx1) || // Clip left  TODO: this is not correct
-			 ((y + 8 * size - 1) < _displayclipy1))   // Clip top   TODO: this is not correct
+			 ((x + 6 * size_x - 1) < _displayclipx1) || // Clip left  TODO: this is not correct
+			 ((y + 8 * size_y - 1) < _displayclipy1))   // Clip top   TODO: this is not correct
 			return;
 
 
@@ -2100,7 +2110,7 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 		if (_use_fbtft) {
 			uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 			for (yc=0; (yc < 8) && (y < _displayclipy2); yc++) {
-				for (yr=0; (yr < size) && (y < _displayclipy2); yr++) {
+				for (yr=0; (yr < size_y) && (y < _displayclipy2); yr++) {
 					x = x_char_start; 		// get our first x position...
 					if (y >= _displayclipy1) {
 						uint16_t * pfbPixel = pfbPixel_row;
@@ -2110,7 +2120,7 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 							} else {
 								color = bgcolor;
 							}
-							for (xr=0; xr < size; xr++) {
+							for (xr=0; xr < size_x; xr++) {
 								if ((x >= _displayclipx1) && (x < _displayclipx2)) {
 									*pfbPixel = color;
 								}
@@ -2118,7 +2128,7 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 								x++;
 							}
 						}
-						for (xr=0; xr < size; xr++) {
+						for (xr=0; xr < size_x; xr++) {
 							if ((x >= _displayclipx1) && (x < _displayclipx2)) {
 								*pfbPixel = bgcolor;
 							}
@@ -2137,8 +2147,8 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 		{
 			// need to build actual pixel rectangle we will output into.
 			int16_t y_char_top = y;	// remember the y
-			int16_t w =  6 * size;
-			int16_t h = 8 * size;
+			int16_t w =  6 * size_x;
+			int16_t h = 8 * size_y;
 
 			if(x < _displayclipx1) {	w -= (_displayclipx1-x); x = _displayclipx1; 	}
 			if((x + w - 1) >= _displayclipx2)  w = _displayclipx2  - x;
@@ -2151,7 +2161,7 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 			y = y_char_top;	// restore the actual y.
 			writecommand(ST7735_RAMWR);
 			for (yc=0; (yc < 8) && (y < _displayclipy2); yc++) {
-				for (yr=0; (yr < size) && (y < _displayclipy2); yr++) {
+				for (yr=0; (yr < size_y) && (y < _displayclipy2); yr++) {
 					x = x_char_start; 		// get our first x position...
 					if (y >= _displayclipy1) {
 						for (xc=0; xc < 5; xc++) {
@@ -2160,14 +2170,14 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 							} else {
 								color = bgcolor;
 							}
-							for (xr=0; xr < size; xr++) {
+							for (xr=0; xr < size_x; xr++) {
 								if ((x >= _displayclipx1) && (x < _displayclipx2)) {
 									writedata16(color);
 								}
 								x++;
 							}
 						}
-						for (xr=0; xr < size; xr++) {
+						for (xr=0; xr < size_x; xr++) {
 							if ((x >= _displayclipx1) && (x < _displayclipx2)) {
 								writedata16(bgcolor);
 							}
@@ -2210,12 +2220,12 @@ void ST7735_t3::setFont(const GFXfont *f) {
         if(!gfxFont) { // And no current font struct?
             // Switching from classic to new font behavior.
             // Move cursor pos down 6 pixels so it's on baseline.
-            //cursor_y += 6;
+            cursor_y += 6;
         }
     } else if(gfxFont) { // NULL passed.  Current font struct defined?
         // Switching from new to classic font behavior.
         // Move cursor pos up 6 pixels so it's at top-left of char.
-        //cursor_y -= 6;
+        cursor_y -= 6;
     }
     gfxFont = f;
 }
@@ -2296,11 +2306,13 @@ void ST7735_t3::drawFontChar(unsigned int c)
 	//Serial.printf("  size =   %d,%d\n", width, height);
 	//Serial.printf("  line space = %d\n", font->line_space);
 
+
 	int32_t xoffset = fetchbits_signed(data, bitoffset, font->bits_xoffset);
 	bitoffset += font->bits_xoffset;
 	int32_t yoffset = fetchbits_signed(data, bitoffset, font->bits_yoffset);
 	bitoffset += font->bits_yoffset;
 	//Serial.printf("  offset = %d,%d\n", xoffset, yoffset);
+    //Serial.printf("DChar: %c %u, %u, wh:%d %d o:%d %d\n", c, cursor_x, cursor_y, width, height, xoffset, yoffset);
 
 	uint32_t delta = fetchbits_unsigned(data, bitoffset, font->bits_delta);
 	bitoffset += font->bits_delta;
@@ -2737,9 +2749,17 @@ void ST7735_t3::drawFontChar(unsigned int c)
 }
 
 //strPixelLen			- gets pixel length of given ASCII string
-int16_t ST7735_t3::strPixelLen(char * str)
+int16_t ST7735_t3::strPixelLen(const char * str)
 {
 //	//Serial.printf("strPixelLen %s\n", str);
+	if (gfxFont) 
+	{
+		// BUGBUG:: just use the other function for now... May do this for all of them...
+	  int16_t x, y;
+	  uint16_t w, h;
+	  getTextBounds(str, cursor_x, cursor_y, &x, &y, &w, &h);
+	  return w;
+	}
 	if (!str) return(0);
 	uint16_t len=0, maxlen=0;
 	while (*str)
@@ -2754,13 +2774,16 @@ int16_t ST7735_t3::strPixelLen(char * str)
 		}
 		else
 		{
-			if (!font)
+			if (gfxFont) 
 			{
-				len+=textsize*6;
+
+			}
+			else if (!font)
+			{
+				len+=textsize_x*6;
 			}
 			else
 			{
-
 				uint32_t bitoffset;
 				const uint8_t *data;
 				uint16_t c = *str;
@@ -2812,6 +2835,158 @@ int16_t ST7735_t3::strPixelLen(char * str)
 //	//Serial.printf("Return  maxlen =  %d\n", maxlen);
 	return( maxlen );
 }
+
+void ST7735_t3::charBounds(char c, int16_t *x, int16_t *y,
+  int16_t *minx, int16_t *miny, int16_t *maxx, int16_t *maxy) {
+
+	// BUGBUG:: Not handling offset/clip
+    if (font) {
+        if(c == '\n') { // Newline?
+            *x  = 0;    // Reset x to zero, advance y by one line
+            *y += font->line_space;
+        } else if(c != '\r') { // Not a carriage return; is normal char
+			uint32_t bitoffset;
+			const uint8_t *data;
+			if (c >= font->index1_first && c <= font->index1_last) {
+				bitoffset = c - font->index1_first;
+				bitoffset *= font->bits_index;
+			} else if (c >= font->index2_first && c <= font->index2_last) {
+				bitoffset = c - font->index2_first + font->index1_last - font->index1_first + 1;
+				bitoffset *= font->bits_index;
+			} else if (font->unicode) {
+				return; // TODO: implement sparse unicode
+			} else {
+				return;
+			}
+			//Serial.printf("  index =  %d\n", fetchbits_unsigned(font->index, bitoffset, font->bits_index));
+			data = font->data + fetchbits_unsigned(font->index, bitoffset, font->bits_index);
+
+			uint32_t encoding = fetchbits_unsigned(data, 0, 3);
+			if (encoding != 0) return;
+			uint32_t width = fetchbits_unsigned(data, 3, font->bits_width);
+			bitoffset = font->bits_width + 3;
+			uint32_t height = fetchbits_unsigned(data, bitoffset, font->bits_height);
+			bitoffset += font->bits_height;
+			//Serial.printf("  size =   %d,%d\n", width, height);
+			//Serial.printf("  line space = %d\n", font->line_space);
+
+			int32_t xoffset = fetchbits_signed(data, bitoffset, font->bits_xoffset);
+			bitoffset += font->bits_xoffset;
+			int32_t yoffset = fetchbits_signed(data, bitoffset, font->bits_yoffset);
+			bitoffset += font->bits_yoffset;
+
+			uint32_t delta = fetchbits_unsigned(data, bitoffset, font->bits_delta);
+			bitoffset += font->bits_delta;
+
+            int16_t
+                    x1 = *x + xoffset,
+                    y1 = *y + yoffset,
+                    x2 = x1 + width,
+                    y2 = y1 + height;
+
+		    if(wrap && (x2 > _width)) {
+	            *x  = 0; // Reset x to zero, advance y by one line
+	            *y += font->line_space;
+	            x1 = *x + xoffset,
+	            y1 = *y + yoffset,
+	            x2 = x1 + width,
+	            y2 = y1 + height;
+        	}
+            if(x1 < *minx) *minx = x1;
+            if(y1 < *miny) *miny = y1;
+            if(x2 > *maxx) *maxx = x2;
+            if(y2 > *maxy) *maxy = y2;
+            *x += delta;	// ? guessing here...
+        }
+    } 
+
+    else if(gfxFont) {
+
+        if(c == '\n') { // Newline?
+            *x  = 0;    // Reset x to zero, advance y by one line
+            *y += textsize_y * gfxFont->yAdvance;
+        } else if(c != '\r') { // Not a carriage return; is normal char
+            uint8_t first = gfxFont->first,
+                    last  = gfxFont->last;
+            if((c >= first) && (c <= last)) { // Char present in this font?
+    			GFXglyph *glyph  = gfxFont->glyph + (c - first);
+                uint8_t gw = glyph->width,
+                        gh = glyph->height,
+                        xa = glyph->xAdvance;
+                int8_t  xo = glyph->xOffset,
+                        yo = glyph->yOffset;
+                if(wrap && ((*x+(((int16_t)xo+gw)*textsize_x)) > _width)) {
+                    *x  = 0; // Reset x to zero, advance y by one line
+                    *y += textsize_y * gfxFont->yAdvance;
+                }
+                int16_t tsx = (int16_t)textsize_x,
+                        tsy = (int16_t)textsize_y,
+                        x1 = *x + xo * tsx,
+                        y1 = *y + yo * tsy,
+                        x2 = x1 + gw * tsx - 1,
+                        y2 = y1 + gh * tsy - 1;
+                if(x1 < *minx) *minx = x1;
+                if(y1 < *miny) *miny = y1;
+                if(x2 > *maxx) *maxx = x2;
+                if(y2 > *maxy) *maxy = y2;
+                *x += xa * tsx;
+            }
+        }
+
+    } else { // Default font
+
+        if(c == '\n') {                     // Newline?
+            *x  = 0;                        // Reset x to zero,
+            *y += textsize_y * 8;           // advance y one line
+            // min/max x/y unchaged -- that waits for next 'normal' character
+        } else if(c != '\r') {  // Normal char; ignore carriage returns
+            if(wrap && ((*x + textsize_x * 6) > _width)) { // Off right?
+                *x  = 0;                    // Reset x to zero,
+                *y += textsize_y * 8;       // advance y one line
+            }
+            int x2 = *x + textsize_x * 6 - 1, // Lower-right pixel of char
+                y2 = *y + textsize_y * 8 - 1;
+            if(x2 > *maxx) *maxx = x2;      // Track max x, y
+            if(y2 > *maxy) *maxy = y2;
+            if(*x < *minx) *minx = *x;      // Track min x, y
+            if(*y < *miny) *miny = *y;
+            *x += textsize_x * 6;             // Advance x one char
+        }
+    }
+}
+
+// Add in Adafruit versions of text bounds calculations. 
+void ST7735_t3::getTextBounds(const char *str, int16_t x, int16_t y,
+        int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h) {
+    uint8_t c; // Current character
+
+    *x1 = x;
+    *y1 = y;
+    *w  = *h = 0;
+
+    int16_t minx = _width, miny = _height, maxx = -1, maxy = -1;
+
+    while((c = *str++))
+        charBounds(c, &x, &y, &minx, &miny, &maxx, &maxy);
+
+    if(maxx >= minx) {
+        *x1 = minx;
+        *w  = maxx - minx + 1;
+    }
+    if(maxy >= miny) {
+        *y1 = miny;
+        *h  = maxy - miny + 1;
+    }
+}
+
+void ST7735_t3::getTextBounds(const String &str, int16_t x, int16_t y,
+        int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h) {
+    if (str.length() != 0) {
+        getTextBounds(const_cast<char*>(str.c_str()), x, y, x1, y1, w, h);
+    }
+}
+
+
 
 void ST7735_t3::drawFontPixel( uint8_t alpha, uint32_t x, uint32_t y ){
 	// Adjust alpha based on the number of alpha levels supported by the font (based on bpp)
@@ -2884,9 +3059,9 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
     int16_t xo = glyph->xOffset; // sic
     int16_t yo = glyph->yOffset;
 
-    if(wrap && ((cursor_x + textsize * (xo + w)) > _width)) {
+    if(wrap && ((cursor_x + textsize_x * (xo + w)) > _width)) {
         cursor_x  = 0;
-        cursor_y += (int16_t)textsize * gfxFont->yAdvance;
+        cursor_y += (int16_t)textsize_y * gfxFont->yAdvance;
     }
 
     // Lets do the work to output the font character
@@ -2894,13 +3069,8 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
 
     uint16_t bo = glyph->bitmapOffset;
     uint8_t  xx, yy, bits = 0, bit = 0;
-    int16_t  xo16 = 0, yo16 = 0;
 
-    if(textsize) {
-        xo16 = xo;
-        yo16 = yo;
-    }
-
+    // Serial.printf("DGFXChar: %c %u, %u, wh:%d %d o:%d %d\n", c, cursor_x, cursor_y, w, h, xo, yo);
     // Todo: Add character clipping here
 
     // NOTE: THERE IS NO 'BACKGROUND' COLOR OPTION ON CUSTOM FONTS.
@@ -2925,18 +3095,18 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
                 bits = bitmap[bo++];
             }
             if(bits & 0x80) {
-                if(textsize == 1) {
+                if((textsize_x == 1) && (textsize_y == 1)){
                     drawPixel(cursor_x+xo+xx, cursor_y+yo+yy, textcolor);
                 } else {
-                fillRect(cursor_x+(xo16+xx)*textsize, cursor_y+(yo16+yy)*textsize,
-                      textsize, textsize, textcolor);
+                fillRect(cursor_x+(xo+xx)*textsize_x, cursor_y+(yo+yy)*textsize_y,
+                      textsize_x, textsize_y, textcolor);
                 }
             }
             bits <<= 1;
         }
     }
 
-    cursor_x += glyph->xAdvance * (int16_t)textsize;
+    cursor_x += glyph->xAdvance * (int16_t)textsize_x;
 }
 
 
