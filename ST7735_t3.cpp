@@ -76,6 +76,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t sid, uint8_t sclk, uint8_t 
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
+	gfxFont   = NULL;
 	setClipRect();
 	setOrigin();
 }
@@ -106,6 +107,7 @@ ST7735_t3::ST7735_t3(uint8_t cs, uint8_t rs, uint8_t rst)
 	textcolor = textbgcolor = 0xFFFF;
 	wrap      = true;
 	font      = NULL;
+	gfxFont   = NULL;
 	setClipRect();
 	setOrigin();
 }
