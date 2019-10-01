@@ -40,3 +40,7 @@ frameCount	KEYWORD2
 asyncUpdateActive	KEYWORD2
 freeFrameBuffer	KEYWORD2
 sendCommand	KEYWORD2
+getTextBounds	KEYWORD2
+getTextSizeX	KEYWORD2
+getTextSizeY	KEYWORD2
+strPixelLen	KEYWORD2
