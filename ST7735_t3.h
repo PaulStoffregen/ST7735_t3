@@ -271,7 +271,7 @@ class ST7735_t3 : public Print
 	void drawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 	void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size_x, uint8_t size_y);
 	void inline drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size) 
-	    { drawChar(x, y, c, color, bg, size);}
+	    { drawChar(x, y, c, color, bg, size, size);}
 	
 	void setCursor(int16_t x, int16_t y);
     void getCursor(int16_t *x, int16_t *y);
