@@ -452,7 +452,6 @@ class ST7735_t3 : public Print
 	uint8_t textsize_x, textsize_y, rotation, textdatum;
 	boolean wrap; // If set, 'wrap' text at right edge of display
 	const ST7735_t3_font_t *font;
-	const GFXfont *gfxFont = nullptr;
 	// Anti-aliased font support
 	uint8_t fontbpp = 1;
 	uint8_t fontbppindex = 0;
@@ -462,6 +461,18 @@ class ST7735_t3 : public Print
 	float fontalphamx = 1;
 	
 	uint32_t padX;
+
+	// GFX Font support
+	const GFXfont *gfxFont = nullptr;
+	int8_t _gfxFont_min_yOffset = 0;
+
+	// Opaque font chracter overlap?
+	unsigned int _gfx_c_last;
+	int16_t   _gfx_last_cursor_x, _gfx_last_cursor_y;
+	int16_t	 _gfx_last_char_x_write = 0;
+	uint16_t _gfx_last_char_textcolor;
+	uint16_t _gfx_last_char_textbgcolor;
+	bool gfxFontLastCharPosFG(int16_t x, int16_t y);
 	
 	void drawFontBits(bool opaque, uint32_t bits, uint32_t numbits, int32_t x, int32_t y, uint32_t repeat);
 	void drawFontPixel( uint8_t alpha, uint32_t x, uint32_t y );
