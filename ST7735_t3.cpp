@@ -3657,10 +3657,10 @@ uint8_t ST7735_t3::useFrameBuffer(boolean b)		// use the frame buffer?  First ca
 {
 	if (b) {
 		// First see if we need to allocate buffer
+		_count_pixels =  _width * _height;  // We may have called setFrameBuffer before we know with and height...
 		if (_pfbtft == NULL) {
 			// Hack to start frame buffer on 32 byte boundary
 			// Note: If called before init maybe larger than we need
-			_count_pixels =  _width * _height;
 			_we_allocated_buffer = (uint16_t *)malloc(_count_pixels*2+32);
 			if (_we_allocated_buffer == NULL)
 				return 0;	// failed 
