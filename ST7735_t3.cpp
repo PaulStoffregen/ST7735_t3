@@ -369,9 +369,6 @@ void ST7735_t3::writedata16_last(uint16_t d)
 	}
 } 
 
-
-
-
 void ST7735_t3::setBitrate(uint32_t n)
 {
 	if (n >= 8000000) {
