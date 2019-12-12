@@ -30,19 +30,19 @@
 // If you use the short version of the constructor and the DC
 // pin is hardware CS pin, then it will be slower.
 
-#define TFT_SCLK 13  // SCLK can also use pin 14
-#define TFT_MOSI 11  // MOSI can also use pin 7
-#define TFT_CS   10  // CS & DC can use pins 2, 6, 9, 10, 15, 20, 21, 22, 23
-#define TFT_DC    9  //  but certain pairs must NOT be used: 2+10, 6+9, 20+23, 21+22
-#define TFT_RST   8  // RST can use any pin
-#define SD_CS     4  // CS for SD card, can use any pin
+#define TFT_MISO  12
+#define TFT_MOSI  11  //a12
+#define TFT_SCK   13  //a13
+#define TFT_DC   9 
+#define TFT_CS   10  
+#define TFT_RST  8
 
 // Note the above pins are for the SPI object.  For those Teensy boards which have
 // more than one SPI object, such as T3.5, T3.6, T4 which have at SPI1 and SPI2
 // LC with SPI1, look at the cards that come with the teensy or the web page
 // https://www.pjrc.com/teensy/pinout.html to select the appropriate IO pins.
 
-#include <Adafruit_GFX.h>    // Core graphics library
+//#include <Adafruit_GFX.h>    // Core graphics library
 #include <ST7735_t3.h> // Hardware-specific library
 #include <ST7789_t3.h> // Hardware-specific library
 #include <SPI.h>
@@ -51,7 +51,7 @@
 // Note: code will detect if specified pins are the hardware SPI pins
 //       and will use hardware SPI if appropriate
 // For 1.44" and 1.8" TFT with ST7735 use
-ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 // For 1.54" or other TFT with ST7789, This has worked with some ST7789
 // displays without CS pins, for those you can pass in -1 or 0xff for CS
@@ -72,12 +72,12 @@ float p = 3.1415926;
 
 
 void setup(void) {
-  pinMode(SD_CS, INPUT_PULLUP);  // don't touch the SD card
+  //pinMode(SD_CS, INPUT_PULLUP);  // don't touch the SD card
   Serial.begin(9600);
   Serial.print("hello!");
 
   // Use this initializer if you're using a 1.8" TFT 128x160 displays
-  tft.initR(INITR_BLACKTAB);
+  //tft.initR(INITR_BLACKTAB);
 
   // Or use this initializer (uncomment) if you're using a 1.44" TFT (128x128)
   //tft.initR(INITR_144GREENTAB);
@@ -94,7 +94,7 @@ void setup(void) {
   //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
 
   // OR use this initializer (uncomment) if using a 2.0" 320x240 TFT:
-  //tft.init(240, 320);           // Init ST7789 320x240
+  tft.init(240, 320);           // Init ST7789 320x240
 
   // OR use this initializer (uncomment) if using a 240x240 clone 
   // that does not have a CS pin2.0" 320x240 TFT:
@@ -124,17 +124,17 @@ void setup(void) {
 
   // line draw test
   testlines(ST7735_YELLOW);
-  delay(500);
+  delay(1000);
 
   // optimized lines
   testfastlines(ST7735_RED, ST7735_BLUE);
-  delay(500);
+  delay(1000);
 
   testdrawrects(ST7735_GREEN);
-  delay(500);
+  delay(1000);
 
   testfillrects(ST7735_YELLOW, ST7735_MAGENTA);
-  delay(500);
+  delay(1000);
 
   tft.fillScreen(ST7735_BLACK);
   testfillcircles(10, ST7735_BLUE);
@@ -142,10 +142,10 @@ void setup(void) {
   delay(500);
 
   testroundrects();
-  delay(500);
+  delay(1000);
 
   testtriangles();
-  delay(500);
+  delay(1000);
 
   mediabuttons();
   delay(500);
@@ -165,6 +165,7 @@ void testlines(uint16_t color) {
   tft.fillScreen(ST7735_BLACK);
   for (int16_t x=0; x < tft.width(); x+=6) {
     tft.drawLine(0, 0, x, tft.height()-1, color);
+    delay(200);
   }
   for (int16_t y=0; y < tft.height(); y+=6) {
     tft.drawLine(0, 0, tft.width()-1, y, color);
