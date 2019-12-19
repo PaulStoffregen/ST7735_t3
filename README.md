@@ -45,6 +45,8 @@ To initialize an instance of the display the user has a choice of constructors:
 	//ST7789_t3 tft = ST7789_t3(TFT_CS,  TFT_DC, TFT_RST);
 ```
 
+NOTE: If the Teensy has more than one SPI buss. And the IO pins are all on a different SPI buss then that buss will be used. (i.e. you can use SPI1 or SPI2).  With this, on a board such as a T4 or T3.5 or T3.6 you can potentially have three displays all on different SPI busses and using the Async updates you can have all three of them updating their display at the same time. 
+
 For the case of a ST7789 the CS pin would be identied with a -1.  This constructor is used for those cases with the display on SPI and no CS pin:
 
 ```c++
@@ -83,7 +85,11 @@ The library supports most if not all display resolutions:
 Frame Buffer
 ------------
 
-The teensy 4.x, 3.6 and 3.5 have a lot more memory than previous Teensy processors, so on these boards, we borrowed some ideas from the ILI9341_t3DMA library and added code to be able to use a logical Frame Buffer.  To enable this we added a couple of API's 
+The teensy 4.x, 3.6 and 3.5 have a lot more memory than previous Teensy processors, so on these boards, we borrowed some ideas from the ILI9341_t3DMA library and added code to be able to use a logical Frame Buffer.  
+
+Since the smaller ST7735 and maybe ST7789 displays have fewer pixels, you can on some of them enable a frame buffer on a T3.2 as well. I believe in this case I did add support for Async updates as well. 
+
+To enable this we added a couple of API's 
 
 ```c++
     uint8_t useFrameBuffer(boolean b) - if b non-zero it will allocate memory and start using
@@ -115,6 +121,7 @@ In addition, this library now has some of the API's and functionality that has b
 	void setClipRect(int16_t x1, int16_t y1, int16_t w, int16_t h); 
 	void setClipRect();
 ```
+
 It also incorporates functionality from the TFT_ILI9341_ESP, https://github.com/Bodmer/TFT_ILI9341_ESP, for additional functions:
 
 ```c++
