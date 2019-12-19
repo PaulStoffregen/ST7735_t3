@@ -29,13 +29,21 @@
 #define ST77XX_MADCTL_ML  0x10
 #define ST77XX_MADCTL_RGB 0x00
 
-ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST) :
-    ST7735_t3(CS, RS, SID, SCLK, RST) 
+ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t SID, uint8_t SCLK, uint8_t RST) : ST7735_t3(CS, RS, SID, SCLK, RST) 
 {
   // Assume the majority of ones.
   tabcolor = INIT_ST7789_TABCOLOR;
   _screenHeight = 240;
   _screenWidth = 240;   
+  
+	cursor_y  = cursor_x    = 0;
+	textsize_x  = 1;
+  textsize_y  = 1;
+	textcolor = textbgcolor = 0xFFFF;
+	wrap      = true;
+	font      = NULL;
+	setClipRect();
+	setOrigin();
 }
 
 ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) : 
@@ -43,7 +51,16 @@ ST7789_t3::ST7789_t3(uint8_t CS, uint8_t RS, uint8_t RST) :
 {
   tabcolor = INIT_ST7789_TABCOLOR;
   _screenHeight = 240;
-  _screenWidth = 240;   
+  _screenWidth = 240; 
+
+	cursor_y  = cursor_x    = 0;
+	textsize_x  = 1;
+  textsize_y  = 1;
+	textcolor = textbgcolor = 0xFFFF;
+	wrap      = true;
+	font      = NULL;
+	setClipRect();
+	setOrigin();
 }
 
 
@@ -89,6 +106,11 @@ void  ST7789_t3::setRotation(uint8_t m)
   _rot = m;  
   endSPITransaction();
 //  Serial.printf("Set rotation %d start(%d %d) row: %d, col: %d\n", m, _xstart, _ystart, _rowstart, _colstart);
+  setClipRect();
+  setOrigin();
+	
+	cursor_x = 0;
+	cursor_y = 0;
 }
 
 #define ST7789_240x240_XSTART 0
@@ -138,12 +160,21 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
     _colstart = 0;
     _rowstart = 0;
   }
-	_height = height;
-	_width = width;
+  
+  _height = height;
+  _width = width;
   _screenHeight = height;
   _screenWidth = width;   
 
-	commandList(cmd_st7789);
-   setRotation(0);
+  commandList(cmd_st7789);
+  setRotation(0);
+  cursor_y  = cursor_x    = 0;
+  textsize_x = textsize_y = 1;
+  textcolor = textbgcolor = 0xFFFF;
+  wrap      = true;
+  font      = NULL;
+  setClipRect();
+  setOrigin();
+  
 }
 
