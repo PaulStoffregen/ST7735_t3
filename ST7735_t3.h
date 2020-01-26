@@ -25,6 +25,8 @@
 #include <SPI.h>
 #endif
 
+#include "ILI9341_fonts.h"
+
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 #define ENABLE_ST77XX_FRAMEBUFFER
@@ -131,26 +133,6 @@
 #define ST77XX_YELLOW     0xFFE0
 #define ST77XX_ORANGE     0xFC00
 
-
-typedef struct {
-	const unsigned char *index;
-	const unsigned char *unicode;
-	const unsigned char *data;
-	unsigned char version;
-	unsigned char reserved;
-	unsigned char index1_first;
-	unsigned char index1_last;
-	unsigned char index2_first;
-	unsigned char index2_last;
-	unsigned char bits_index;
-	unsigned char bits_width;
-	unsigned char bits_height;
-	unsigned char bits_xoffset;
-	unsigned char bits_yoffset;
-	unsigned char bits_delta;
-	unsigned char line_space;
-	unsigned char cap_height;
-} ST7735_t3_font_t;
 
 // Lets see about supporting Adafruit fonts as well?
 #ifndef _GFXFONT_H_
@@ -289,7 +271,7 @@ class ST7735_t3 : public Print
 	virtual size_t write(uint8_t);		
 	int16_t getCursorX(void) const { return cursor_x; }
 	int16_t getCursorY(void) const { return cursor_y; }
-	void setFont(const ST7735_t3_font_t &f);
+	void setFont(const ILI9341_t3_font_t &f);
     void setFont(const GFXfont *f = NULL);
 	void setFontAdafruit(void) { setFont(); }
 	void drawFontChar(unsigned int c);
@@ -451,7 +433,7 @@ class ST7735_t3 : public Print
 	uint32_t textcolorPrexpanded, textbgcolorPrexpanded;
 	uint8_t textsize_x, textsize_y, rotation, textdatum;
 	boolean wrap; // If set, 'wrap' text at right edge of display
-	const ST7735_t3_font_t *font;
+	const ILI9341_t3_font_t *font;
 	// Anti-aliased font support
 	uint8_t fontbpp = 1;
 	uint8_t fontbppindex = 0;
