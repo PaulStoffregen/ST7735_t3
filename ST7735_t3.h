@@ -25,6 +25,8 @@
 #include <SPI.h>
 #endif
 
+#include "ILI9341_fonts.h"
+
 #ifndef DISABLE_ST77XX_FRAMEBUFFER
 #if defined(__MK64FX512__) || defined(__MK66FX1M0__)
 #define ENABLE_ST77XX_FRAMEBUFFER
@@ -130,27 +132,10 @@
 #define ST77XX_MAGENTA    0xF81F
 #define ST77XX_YELLOW     0xFFE0
 #define ST77XX_ORANGE     0xFC00
+#define ST77XX_PINK       0xF81F
 
-
-typedef struct {
-	const unsigned char *index;
-	const unsigned char *unicode;
-	const unsigned char *data;
-	unsigned char version;
-	unsigned char reserved;
-	unsigned char index1_first;
-	unsigned char index1_last;
-	unsigned char index2_first;
-	unsigned char index2_last;
-	unsigned char bits_index;
-	unsigned char bits_width;
-	unsigned char bits_height;
-	unsigned char bits_xoffset;
-	unsigned char bits_yoffset;
-	unsigned char bits_delta;
-	unsigned char line_space;
-	unsigned char cap_height;
-} ST7735_t3_font_t;
+// Map fonts that were modified back to the ILI9341 font
+#define ST7735_t3_font_t ILI9341_t3_font_t
 
 // Lets see about supporting Adafruit fonts as well?
 #ifndef _GFXFONT_H_
@@ -236,6 +221,7 @@ class ST7735_t3 : public Print
            drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color),
            drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color),
            fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+   inline void fillWindow(uint16_t color) {fillScreen(color);}
   virtual void setRotation(uint8_t r);
   void     invertDisplay(boolean i);
   void     setRowColStart(uint16_t x, uint16_t y);
@@ -273,7 +259,8 @@ class ST7735_t3 : public Print
 	void inline drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size) 
 	    { drawChar(x, y, c, color, bg, size, size);}
 	
-	void setCursor(int16_t x, int16_t y);
+	static const int16_t CENTER = 9998;
+	void setCursor(int16_t x, int16_t y, bool autoCenter=false);
     void getCursor(int16_t *x, int16_t *y);
 	void setTextColor(uint16_t c);
 	void setTextColor(uint16_t c, uint16_t bg);
@@ -287,14 +274,17 @@ class ST7735_t3 : public Print
 	
 	//////
 	virtual size_t write(uint8_t);		
+	virtual size_t write(const uint8_t *buffer, size_t size);
 	int16_t getCursorX(void) const { return cursor_x; }
 	int16_t getCursorY(void) const { return cursor_y; }
-	void setFont(const ST7735_t3_font_t &f);
+	void setFont(const ILI9341_t3_font_t &f);
     void setFont(const GFXfont *f = NULL);
 	void setFontAdafruit(void) { setFont(); }
 	void drawFontChar(unsigned int c);
 	void drawGFXFontChar(unsigned int c);
 
+    void getTextBounds(const uint8_t *buffer, uint16_t len, int16_t x, int16_t y,
+      int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
     void getTextBounds(const char *string, int16_t x, int16_t y,
       int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
     void getTextBounds(const String &str, int16_t x, int16_t y,
@@ -424,6 +414,8 @@ class ST7735_t3 : public Print
   boolean  hwSPI;
   ////
   	int16_t  cursor_x, cursor_y;
+	bool 	 _center_x_text = false; 
+	bool 	 _center_y_text = false; 
 	int16_t  _clipx1, _clipy1, _clipx2, _clipy2;
 	int16_t  _originx, _originy;
 	int16_t  _displayclipx1, _displayclipy1, _displayclipx2, _displayclipy2;
@@ -451,7 +443,7 @@ class ST7735_t3 : public Print
 	uint32_t textcolorPrexpanded, textbgcolorPrexpanded;
 	uint8_t textsize_x, textsize_y, rotation, textdatum;
 	boolean wrap; // If set, 'wrap' text at right edge of display
-	const ST7735_t3_font_t *font;
+	const ILI9341_t3_font_t *font;
 	// Anti-aliased font support
 	uint8_t fontbpp = 1;
 	uint8_t fontbppindex = 0;
