@@ -662,7 +662,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 	void HLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
-		#ifdef ENABLE_ST7735_FRAMEBUFFER
+		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
 	  		drawFastHLine(x, y, w, color);
 	  		return;
@@ -685,7 +685,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 	void VLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	  __attribute__((always_inline)) 
 	  {
-		#ifdef ENABLE_ST7735_FRAMEBUFFER
+		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
 	  		drawFastVLine(x, y, h, color);
 	  		return;
