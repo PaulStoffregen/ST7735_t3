@@ -89,7 +89,7 @@ static const unsigned char ComicSansMS_8_index[] = {
 };
 /* font index size: 119 bytes */
 
-const ST7735_t3_font_t ComicSansMS_8 = {
+const ILI9341_t3_font_t ComicSansMS_8 = {
 	ComicSansMS_8_index,
 	0,
 	ComicSansMS_8_data,
@@ -211,7 +211,7 @@ static const unsigned char ComicSansMS_9_index[] = {
 };
 /* font index size: 119 bytes */
 
-const ST7735_t3_font_t ComicSansMS_9 = {
+const ILI9341_t3_font_t ComicSansMS_9 = {
 	ComicSansMS_9_index,
 	0,
 	ComicSansMS_9_data,
@@ -341,7 +341,7 @@ static const unsigned char ComicSansMS_10_index[] = {
 };
 /* font index size: 119 bytes */
 
-const ST7735_t3_font_t ComicSansMS_10 = {
+const ILI9341_t3_font_t ComicSansMS_10 = {
 	ComicSansMS_10_index,
 	0,
 	ComicSansMS_10_data,
@@ -477,7 +477,7 @@ static const unsigned char ComicSansMS_11_index[] = {
 };
 /* font index size: 119 bytes */
 
-const ST7735_t3_font_t ComicSansMS_11 = {
+const ILI9341_t3_font_t ComicSansMS_11 = {
 	ComicSansMS_11_index,
 	0,
 	ComicSansMS_11_data,
@@ -648,7 +648,7 @@ static const unsigned char ComicSansMS_12_index[] = {
 };
 /* font index size: 131 bytes */
 
-const ST7735_t3_font_t ComicSansMS_12 = {
+const ILI9341_t3_font_t ComicSansMS_12 = {
 	ComicSansMS_12_index,
 	0,
 	ComicSansMS_12_data,
@@ -826,7 +826,7 @@ static const unsigned char ComicSansMS_13_index[] = {
 };
 /* font index size: 131 bytes */
 
-const ST7735_t3_font_t ComicSansMS_13 = {
+const ILI9341_t3_font_t ComicSansMS_13 = {
 	ComicSansMS_13_index,
 	0,
 	ComicSansMS_13_data,
@@ -1014,7 +1014,7 @@ static const unsigned char ComicSansMS_14_index[] = {
 };
 /* font index size: 131 bytes */
 
-const ST7735_t3_font_t ComicSansMS_14 = {
+const ILI9341_t3_font_t ComicSansMS_14 = {
 	ComicSansMS_14_index,
 	0,
 	ComicSansMS_14_data,
@@ -1235,7 +1235,7 @@ static const unsigned char ComicSansMS_16_index[] = {
 };
 /* font index size: 131 bytes */
 
-const ST7735_t3_font_t ComicSansMS_16 = {
+const ILI9341_t3_font_t ComicSansMS_16 = {
 	ComicSansMS_16_index,
 	0,
 	ComicSansMS_16_data,
@@ -1496,7 +1496,7 @@ static const unsigned char ComicSansMS_18_index[] = {
 };
 /* font index size: 143 bytes */
 
-const ST7735_t3_font_t ComicSansMS_18 = {
+const ILI9341_t3_font_t ComicSansMS_18 = {
 	ComicSansMS_18_index,
 	0,
 	ComicSansMS_18_data,
@@ -1812,7 +1812,7 @@ static const unsigned char ComicSansMS_20_index[] = {
 };
 /* font index size: 143 bytes */
 
-const ST7735_t3_font_t ComicSansMS_20 = {
+const ILI9341_t3_font_t ComicSansMS_20 = {
 	ComicSansMS_20_index,
 	0,
 	ComicSansMS_20_data,
@@ -2213,7 +2213,7 @@ static const unsigned char ComicSansMS_24_index[] = {
 };
 /* font index size: 143 bytes */
 
-const ST7735_t3_font_t ComicSansMS_24 = {
+const ILI9341_t3_font_t ComicSansMS_24 = {
 	ComicSansMS_24_index,
 	0,
 	ComicSansMS_24_data,
@@ -2753,7 +2753,7 @@ static const unsigned char ComicSansMS_28_index[] = {
 };
 /* font index size: 155 bytes */
 
-const ST7735_t3_font_t ComicSansMS_28 = {
+const ILI9341_t3_font_t ComicSansMS_28 = {
 	ComicSansMS_28_index,
 	0,
 	ComicSansMS_28_data,
@@ -3408,7 +3408,7 @@ static const unsigned char ComicSansMS_32_index[] = {
 };
 /* font index size: 155 bytes */
 
-const ST7735_t3_font_t ComicSansMS_32 = {
+const ILI9341_t3_font_t ComicSansMS_32 = {
 	ComicSansMS_32_index,
 	0,
 	ComicSansMS_32_data,
@@ -4401,7 +4401,7 @@ static const unsigned char ComicSansMS_40_index[] = {
 };
 /* font index size: 167 bytes */
 
-const ST7735_t3_font_t ComicSansMS_40 = {
+const ILI9341_t3_font_t ComicSansMS_40 = {
 	ComicSansMS_40_index,
 	0,
 	ComicSansMS_40_data,
@@ -5818,7 +5818,7 @@ static const unsigned char ComicSansMS_48_index[] = {
 };
 /* font index size: 167 bytes */
 
-const ST7735_t3_font_t ComicSansMS_48 = {
+const ILI9341_t3_font_t ComicSansMS_48 = {
 	ComicSansMS_48_index,
 	0,
 	ComicSansMS_48_data,
@@ -7903,7 +7903,7 @@ static const unsigned char ComicSansMS_60_index[] = {
 };
 /* font index size: 179 bytes */
 
-const ST7735_t3_font_t ComicSansMS_60 = {
+const ILI9341_t3_font_t ComicSansMS_60 = {
 	ComicSansMS_60_index,
 	0,
 	ComicSansMS_60_data,
@@ -10891,7 +10891,7 @@ static const unsigned char ComicSansMS_72_index[] = {
 };
 /* font index size: 179 bytes */
 
-const ST7735_t3_font_t ComicSansMS_72 = {
+const ILI9341_t3_font_t ComicSansMS_72 = {
 	ComicSansMS_72_index,
 	0,
 	ComicSansMS_72_data,
@@ -16043,7 +16043,7 @@ static const unsigned char ComicSansMS_96_index[] = {
 };
 /* font index size: 190 bytes */
 
-const ST7735_t3_font_t ComicSansMS_96 = {
+const ILI9341_t3_font_t ComicSansMS_96 = {
 	ComicSansMS_96_index,
 	0,
 	ComicSansMS_96_data,
