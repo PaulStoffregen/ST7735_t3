@@ -1234,7 +1234,7 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 	y+=_originy;
 	//BUGBUG:: Should add some validation of X and Y
 
-	//#ifdef ENABLE_ST77XX_FRAMEBUFFER
+	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
 		uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 		for (;h>0; h--) {
@@ -1246,7 +1246,7 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 		}
 		return;  
 	}
-	//#endif   
+	#endif   
 }
 
 // Now lets see if we can writemultiple pixels
