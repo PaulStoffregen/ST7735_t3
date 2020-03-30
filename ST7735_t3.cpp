@@ -289,7 +289,7 @@ inline void ST7735_t3::spiwrite(uint8_t c)
 void ST7735_t3::writecommand(uint8_t c)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7) /*| LPSPI_TCR_CONT*/);
+		maybeUpdateTCR(_tcr_dc_assert | LPSPI_TCR_FRAMESZ(7) /*| LPSPI_TCR_CONT*/);
 		_pimxrt_spi->TDR = c;
 		_pending_rx_count++;	//
 		waitFifoNotFull();
@@ -302,7 +302,7 @@ void ST7735_t3::writecommand(uint8_t c)
 void ST7735_t3::writecommand_last(uint8_t c)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));
+		maybeUpdateTCR(_tcr_dc_assert | LPSPI_TCR_FRAMESZ(7));
 		_pimxrt_spi->TDR = c;
 		_pending_rx_count++;	//
 		waitTransmitComplete();
@@ -316,7 +316,7 @@ void ST7735_t3::writecommand_last(uint8_t c)
 void ST7735_t3::writedata(uint8_t c)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+		maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(7));
 		_pimxrt_spi->TDR = c;
 		_pending_rx_count++;	//
 		waitTransmitComplete();
@@ -329,7 +329,7 @@ void ST7735_t3::writedata(uint8_t c)
 void ST7735_t3::writedata_last(uint8_t c)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+		maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(7));
 		_pimxrt_spi->TDR = c;
 		_pending_rx_count++;	//
 		waitTransmitComplete();
@@ -343,7 +343,7 @@ void ST7735_t3::writedata_last(uint8_t c)
 void ST7735_t3::writedata16(uint16_t d)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
+		maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
 		_pimxrt_spi->TDR = d;
 		_pending_rx_count++;	//
 		waitFifoNotFull();
@@ -357,7 +357,7 @@ void ST7735_t3::writedata16(uint16_t d)
 void ST7735_t3::writedata16_last(uint16_t d)
 {
 	if (hwSPI) {
-		maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15));
+		maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(15));
 		_pimxrt_spi->TDR = d;
 //		_pimxrt_spi->SR = LPSPI_SR_WCF | LPSPI_SR_FCF | LPSPI_SR_TCF;
 		_pending_rx_count++;	//
@@ -798,17 +798,22 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	} else _csport = 0;
 
 	if (_pspi && _pspi->pinIsChipSelect(_rs)) {
-	 	_pspi->setCS(_rs);
+	 	uint8_t dc_cs_index = _pspi->setCS(_rs);
 	 	_dcport = 0;
 	 	_dcpinmask = 0;
+	 	dc_cs_index--;	// convert to 0 based
+		_tcr_dc_assert = LPSPI_TCR_PCS(dc_cs_index);
+    	_tcr_dc_not_assert = LPSPI_TCR_PCS(3);
 	} else {
 		//Serial.println("ST7735_t3: Error not DC is not valid hardware CS pin");
 		_dcport = portOutputRegister(_rs);
 		_dcpinmask = digitalPinToBitMask(_rs);
 		pinMode(_rs, OUTPUT);	
 		DIRECT_WRITE_HIGH(_dcport, _dcpinmask);
+		_tcr_dc_assert = LPSPI_TCR_PCS(0);
+    	_tcr_dc_not_assert = LPSPI_TCR_PCS(1);
 	}
-	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(7));
+	maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(7));
 
     // Teensy LC
 #elif defined(__MKL26Z64__)
@@ -3597,7 +3602,7 @@ void ST7735_t3::process_dma_interrupt(void) {
 			_pimxrt_spi->SR = 0x3f00;	// clear out all of the other status...
 
 
-//			maybeUpdateTCR(LPSPI_TCR_PCS(0) | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
+//			maybeUpdateTCR(_tcr_dc_assert | LPSPI_TCR_FRAMESZ(7));	// output Command with 8 bits
 			// Serial.printf("Output NOP (SR %x CR %x FSR %x FCR %x %x TCR:%x)\n", _pimxrt_spi->SR, _pimxrt_spi->CR, _pimxrt_spi->FSR, 
 			//	_pimxrt_spi->FCR, _spi_fcr_save, _pimxrt_spi->TCR);
 			_pending_rx_count = 0;	// Make sure count is zero
@@ -4059,9 +4064,9 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	// Update TCR to 16 bit mode. and output the first entry.
 	_spi_fcr_save = _pimxrt_spi->FCR;	// remember the FCR
 	_pimxrt_spi->FCR = 0;	// clear water marks... 	
-	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_RXMSK /*| LPSPI_TCR_CONT*/);
+	maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_RXMSK /*| LPSPI_TCR_CONT*/);
 //	_pimxrt_spi->CFGR1 |= LPSPI_CFGR1_NOSTALL;
-//	maybeUpdateTCR(LPSPI_TCR_PCS(1) | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
+//	maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(15) | LPSPI_TCR_CONT);
  	_pimxrt_spi->DER = LPSPI_DER_TDDE;
 	_pimxrt_spi->SR = 0x3f00;	// clear out all of the other status...
 

@@ -508,6 +508,8 @@ class ST7735_t3 : public Print
   SPIClass::SPI_Hardware_t *_spi_hardware;
   uint8_t _pending_rx_count = 0;
   uint32_t _spi_tcr_current = 0; 
+  uint32_t _tcr_dc_assert;
+  uint32_t _tcr_dc_not_assert;
 
 
   void DIRECT_WRITE_LOW(volatile uint32_t * base, uint32_t mask)  __attribute__((always_inline)) {
@@ -540,6 +542,7 @@ class ST7735_t3 : public Print
 
   inline void beginSPITransaction() {
     if (hwSPI) _pspi->beginTransaction(_spiSettings);
+    if (!_dcport) _spi_tcr_current = _pimxrt_spi->TCR;  // Only if DC is on hardware CS 
     if (_csport)DIRECT_WRITE_LOW(_csport, _cspinmask);
   }
 
