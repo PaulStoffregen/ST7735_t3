@@ -17,7 +17,7 @@ BR_DATUM = Bottom right
 #include <SPI.h>
 #include <ST7735_t3.h> // Hardware-specific library
 #include <ST7789_t3.h> // Hardware-specific library
-#include <ST7735_t3_font_Arial.h>
+#include <st7735_t3_font_Arial.h>
 
 
 #define TFT_MISO  1
