@@ -163,8 +163,8 @@ typedef struct {
 #endif // _GFXFONT_H_
 
 
-#ifndef swap
-#define swap(a, b) { typeof(a) t = a; a = b; b = t; }
+#ifndef st7735_swap
+#define st7735_swap(a, b) { typeof(a) t = a; a = b; b = t; }
 #endif
 
 #ifdef __cplusplus
