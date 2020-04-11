@@ -1779,7 +1779,7 @@ int16_t ST7735_t3::drawFloat(float floatNumber, int dp, int poX, int poY)
   if (dp > 7) dp = 7; // Limit the size of decimal portion
 
   // Adjust the rounding value
-  for (uint8_t i = 0; i < dp; ++i) rounding /= 10.0;
+  for (uint8_t i = 0; i < dp; ++i) rounding /= 10.0f;
 
   if (floatNumber < -rounding)    // add sign, avoid adding - sign to 0.0!
   {
