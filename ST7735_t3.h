@@ -56,6 +56,7 @@
 #define INITR_144GREENTAB   0x1
 #define INITR_144GREENTAB_OFFSET   0x4
 #define INITR_MINI160x80  0x05
+#define INITR_MINI160x80_ST7735S 0x06
 
 #define INIT_ST7789_TABCOLOR 42  // Not used except as a indicator to the code... 
 

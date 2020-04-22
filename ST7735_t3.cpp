@@ -595,7 +595,16 @@ static const uint8_t PROGMEM
       0x00, 0x4F,                   //     XEND = 79
     ST7735_RASET,   4,              //  2: Row addr set, 4 args, no delay:
       0x00, 0x00,                   //     XSTART = 0
-      0x00, 0x9F },                 //     XEND = 159
+      0x00, 0x9F},                 //     XEND = 159
+  Rcmd2minist7735s[] = {
+    3,                        //  2 commands in list:
+    ST7735_CASET  , 4      ,  //  1: Column addr set, 4 args, no delay:
+      0x00, 0x00+26,             //     XSTART = 0
+      0x00, 0x7F+26,             //     XEND = 127
+    ST7735_RASET  , 4      ,  //  2: Row addr set, 4 args, no delay:
+      0x00, 0x00+1,             //     XSTART = 0
+      0x00, 0x4F+1,           //     XEND = 79
+    ST7735_INVON,  0},			// these displays need colors inversed
 
   Rcmd3[] = {                 // Init for 7735R, part 3 (red or green tab)
     4,                        //  4 commands in list:
@@ -905,12 +914,18 @@ void ST7735_t3::initR(uint8_t options)
 		commandList(Rcmd2green144);
 		_colstart = 0;
 		_rowstart = 32;
-	  } else if(options == INITR_MINI160x80) {
+	} else if(options == INITR_MINI160x80) {
 	    _screenHeight   = ST7735_TFTHEIGHT_160;
 	    _screenWidth    = ST7735_TFTWIDTH_80;
 	    commandList(Rcmd2green160x80);
 	    _colstart = 24;
 	    _rowstart = 0;
+	} else if (options == INITR_MINI160x80_ST7735S) {
+	    _screenHeight   = 160;
+	    _screenWidth    = 80;
+	    commandList(Rcmd2minist7735s);
+	    _colstart = 26;
+	    _rowstart = 1;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
@@ -924,7 +939,8 @@ void ST7735_t3::initR(uint8_t options)
 	}
 
 	tabcolor = options;
-	setRotation(0);
+	setRotation(0);	
+
 }
 
 

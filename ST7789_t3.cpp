@@ -88,16 +88,26 @@ void  ST7789_t3::setRotation(uint8_t m)
      break;
   case 2:
      writedata_last(ST77XX_MADCTL_RGB); 
-     _xstart = 0;
-     _ystart = 0; //_rowstart;
+    if ((_screenWidth == 135) && (_screenHeight == 240)) {
+      _xstart = _colstart - 1;
+      _ystart = _rowstart;
+    } else {
+      _xstart = 0;
+      _ystart = 0;
+    }
      _width = _screenWidth;
      _height = _screenHeight;
      break;
 
    case 3:
      writedata_last(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
-     _xstart = 0; //_rowstart;
-     _ystart = 0;
+    if ((_screenWidth == 135) && (_screenHeight == 240)) {
+      _xstart = _rowstart;
+      _ystart = _colstart;
+    } else {
+      _xstart = 0;
+      _ystart = 0;
+    }
      _height = _screenWidth;
      _width = _screenHeight;
      break;
@@ -156,6 +166,9 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
   if ((width == 240) && (height == 240)) {
     _colstart = 0;
     _rowstart = 80;
+  } else if ((width == 135) && (height == 240)) { // 1.13" display Their smaller display
+    _colstart = 53;
+    _rowstart = 40;
   } else {
     _colstart = 0;
     _rowstart = 0;
