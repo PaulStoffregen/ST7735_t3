@@ -1795,7 +1795,7 @@ int16_t ST7735_t3::drawFloat(float floatNumber, int dp, int poX, int poY)
   if (dp > 7) dp = 7; // Limit the size of decimal portion
 
   // Adjust the rounding value
-  for (uint8_t i = 0; i < dp; ++i) rounding /= 10.0;
+  for (uint8_t i = 0; i < dp; ++i) rounding /= 10.0f;
 
   if (floatNumber < -rounding)    // add sign, avoid adding - sign to 0.0!
   {
@@ -3191,8 +3191,10 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
     GFXglyph *glyph  = gfxFont->glyph + (c - first);
     uint8_t   w     = glyph->width,
               h     = glyph->height;
-    if((w == 0) || (h == 0))  return;  // Is there an associated bitmap?
-
+			  
+    // wonder if we should look at xo, yo instead?         
+    if((w == 0 ||  h == 0)  && (c != 32))   return;  // Is there an associated bitmap?
+	
     int16_t xo = glyph->xOffset; // sic
     int16_t yo = glyph->yOffset + gfxFont->yAdvance/2;
 
