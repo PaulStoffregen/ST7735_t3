@@ -139,6 +139,10 @@
 #define ST7735_t3_font_t ILI9341_t3_font_t
 
 // Lets see about supporting Adafruit fonts as well?
+#if __has_include(<gfxfont.h>)
+  #include <gfxfont.h>
+#endif
+
 #ifndef _GFXFONT_H_
 #define _GFXFONT_H_
 
