@@ -84,7 +84,9 @@ void loop() {
 
 #define BUFFPIXEL 20
 
-void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
+//===========================================================
+// Try Draw using writeRect
+void bmpDraw(const char *filename, uint8_t x, uint16_t y) {
 
   File     bmpFile;
   int      bmpWidth, bmpHeight;   // W+H in pixels
@@ -92,17 +94,19 @@ void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
   uint32_t bmpImageoffset;        // Start of image data in file
   uint32_t rowSize;               // Not always = bmpWidth; may have padding
   uint8_t  sdbuffer[3*BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
-  uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
+  uint16_t buffidx = sizeof(sdbuffer); // Current position in sdbuffer
   boolean  goodBmp = false;       // Set to true on valid header parse
   boolean  flip    = true;        // BMP is stored bottom-to-top
   int      w, h, row, col;
   uint8_t  r, g, b;
   uint32_t pos = 0, startTime = millis();
 
+  uint16_t awColors[320];  // hold colors for one row at a time...
+
   if((x >= tft.width()) || (y >= tft.height())) return;
 
   Serial.println();
-  Serial.print("Loading image '");
+  Serial.print(F("Loading image '"));
   Serial.print(filename);
   Serial.println('\'');
 
@@ -123,21 +127,21 @@ void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
 
   // Parse BMP header
   if(read16(bmpFile) == 0x4D42) { // BMP signature
-    Serial.print("File size: "); Serial.println(read32(bmpFile));
+    Serial.print(F("File size: ")); Serial.println(read32(bmpFile));
     (void)read32(bmpFile); // Read & ignore creator bytes
     bmpImageoffset = read32(bmpFile); // Start of image data
-    Serial.print("Image Offset: "); Serial.println(bmpImageoffset, DEC);
+    Serial.print(F("Image Offset: ")); Serial.println(bmpImageoffset, DEC);
     // Read DIB header
-    Serial.print("Header size: "); Serial.println(read32(bmpFile));
+    Serial.print(F("Header size: ")); Serial.println(read32(bmpFile));
     bmpWidth  = read32(bmpFile);
     bmpHeight = read32(bmpFile);
     if(read16(bmpFile) == 1) { // # planes -- must be '1'
       bmpDepth = read16(bmpFile); // bits per pixel
-      Serial.print("Bit Depth: "); Serial.println(bmpDepth);
+      Serial.print(F("Bit Depth: ")); Serial.println(bmpDepth);
       if((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed
 
         goodBmp = true; // Supported BMP format -- proceed!
-        Serial.print("Image size: ");
+        Serial.print(F("Image size: "));
         Serial.print(bmpWidth);
         Serial.print('x');
         Serial.println(bmpHeight);
@@ -157,9 +161,6 @@ void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
         h = bmpHeight;
         if((x+w-1) >= tft.width())  w = tft.width()  - x;
         if((y+h-1) >= tft.height()) h = tft.height() - y;
-
-        // Set TFT address window to clipped image bounds
-        tft.setAddrWindow(x, y, x+w-1, y+h-1);
 
         for (row=0; row<h; row++) { // For each scanline...
 
@@ -189,10 +190,11 @@ void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
             b = sdbuffer[buffidx++];
             g = sdbuffer[buffidx++];
             r = sdbuffer[buffidx++];
-            tft.pushColor(tft.Color565(r,g,b));
+            awColors[col] = tft.Color565(r,g,b);
           } // end pixel
+          tft.writeRect(0, row, w, 1, awColors);
         } // end scanline
-        Serial.print("Loaded in ");
+        Serial.print(F("Loaded in "));
         Serial.print(millis() - startTime);
         Serial.println(" ms");
       } // end goodBmp
@@ -200,7 +202,7 @@ void bmpDraw(const char *filename, uint8_t x, uint8_t y) {
   }
 
   bmpFile.close();
-  if(!goodBmp) Serial.println("BMP format not recognized.");
+  if(!goodBmp) Serial.println(F("BMP format not recognized."));
 }
 
 // These read 16- and 32-bit types from the SD card file.
