@@ -3935,7 +3935,7 @@ void	ST7735_t3::initDMASettings(void)
 	// to remove tearing and the like...I know with 256 it will be either 256 or 248...
 	_dma_buffer_size = ST77XX_DMA_BUFFER_SIZE;
 	_dma_cnt_sub_frames_per_frame = (_count_pixels) / _dma_buffer_size;
-	while ((_dma_cnt_sub_frames_per_frame * _dma_buffer_size) != (_count_pixels)) {
+	while ((uint32_t)(_dma_cnt_sub_frames_per_frame * _dma_buffer_size) != (_count_pixels)) {
 		_dma_buffer_size--;
 		_dma_cnt_sub_frames_per_frame = (_count_pixels) / _dma_buffer_size;		
 	}
