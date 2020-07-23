@@ -403,7 +403,7 @@ class ST7735_t3 : public Print
   uint8_t  tabcolor;
 
   void     spiwrite(uint8_t),
-  		   spiwrite16(uint16_t d),
+  		     spiwrite16(uint16_t d),
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
@@ -596,7 +596,11 @@ class ST7735_t3 : public Print
   uint32_t ctar;
 #endif
 #if defined(__MKL26Z64__)
-volatile uint8_t *dataport, *clkport, *csport, *rsport;
+  KINETISL_SPI_t *_pkinetisl_spi;
+  uint8_t _dcpinAsserted;
+  uint8_t _data_sent_not_completed;
+
+  volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
@@ -611,6 +615,25 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
     if (hwSPI) SPI.endTransaction(); 
     else if (hwSPI1)  SPI1.endTransaction();  
   }
+
+  void waitTransmitComplete();
+
+  void setCommandMode() __attribute__((always_inline)) {
+    if (_dcpinAsserted != 1) {
+      waitTransmitComplete();
+      *rsport  &= ~rspinmask;
+      _dcpinAsserted = 1;
+    }
+  }
+
+  void setDataMode() __attribute__((always_inline)) {
+    if (_dcpinAsserted != 0) {
+      waitTransmitComplete();
+      *rsport  |= rspinmask;
+      _dcpinAsserted = 0;
+    }
+  }
+
 #endif 
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
