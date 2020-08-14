@@ -3,11 +3,15 @@
 //If using a display with a CS pin you can change pin configuration
 //in config.h
 #define USE_ASYNC_UPDATES
-#define ST77XX_ON_SPI_SPI1
+//#define ST77XX_ON_SPI_SPI1
 #define USE_ST7789
+
+// Define if you wish to see debug information on the ST7789 displays
 //#define DEBUG_ST7789
-#define SERIAL_tt Serial // Send debug_tt output here. Must have SERIAL_tt.begin( ## )
-//#include "debug_tt.h"
+
+// Define if you wish to debug memory usage.  Only works on T4.x
+//#define DEBUG_MEMORY
+
 #define BUTTON_ISR 7
 //--------------------------------------------------------------------------
 // Uncanny eyes for Adafruit 1.5" OLED (product #1431) or 1.44" TFT LCD
@@ -86,12 +90,8 @@ void setup(void) {
   while (!Serial && millis() < 2000 );
   delay(500);
   DumpMemoryInfo();
-  SERIAL_tt.println("\n" __FILE__ " " __DATE__ " " __TIME__);
-  //  SERIAL_tt.println("\n********\n T4 connected Serial_tt ******* debug_tt port\n");
-  //  Serial.println("\n" __FILE__ " " __DATE__ " " __TIME__);
-  //  debBegin_tt( (HardwareSerial*)&SERIAL_tt, LED_BUILTIN, BUTTON_ISR);
-
   Serial.println("Init");
+  Serial.flush();
   randomSeed(analogRead(A3)); // Seed random() from floating analog input
 
 #ifdef DISPLAY_BACKLIGHT
@@ -162,9 +162,9 @@ void setup(void) {
     eye[e].display->fillScreen(0);
 #ifdef LOGO_TOP_WIDTH
     // Monochrome Adafruit logo is 2 mono bitmaps:
-    eye[e].display->drawBitmap(NUM_EYES * DISPLAY_SIZE/2 - e * DISPLAY_SIZE - 20,
+    eye[e].display->drawBitmap(NUM_EYES * DISPLAY_SIZE / 2 - e * DISPLAY_SIZE - 20,
                                0, logo_top, LOGO_TOP_WIDTH, LOGO_TOP_HEIGHT, 0xFFFF);
-    eye[e].display->drawBitmap(NUM_EYES * DISPLAY_SIZE/2 - e * DISPLAY_SIZE - LOGO_BOTTOM_WIDTH / 2,
+    eye[e].display->drawBitmap(NUM_EYES * DISPLAY_SIZE / 2 - e * DISPLAY_SIZE - LOGO_BOTTOM_WIDTH / 2,
                                LOGO_TOP_HEIGHT, logo_bottom, LOGO_BOTTOM_WIDTH, LOGO_BOTTOM_HEIGHT,
                                0xFFFF);
 #else
@@ -305,15 +305,15 @@ void drawEye( // Renders one eye.  Inputs must be pre-clipped & valid.
   eye[e].display->setTextSize(2);
   eye[e].display->setTextColor(ST77XX_RED, ST77XX_BLACK);
   eye[e].display->printf("%4u %4u %5u\n(%3u,%3u)", iScale, irisThreshold, irisScale, scleraX, scleraY);
-  eye[e].display->setCursor(0, DISPLAY_SIZE-20);
+  eye[e].display->setCursor(0, DISPLAY_SIZE - 20);
   eye[e].display->printf("%u %3u %3u %3u %3u\n", uT, lT, eye[e].blink.state, max_d, max_a);
 
   // Debug
-  static uint32_t iScale_printed[32] = {0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-  bool print_iScale = (iScale_printed[iScale>>5] & (1<<(iScale &0x1f)))? false : true;
+  static uint32_t iScale_printed[32] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  bool print_iScale = (iScale_printed[iScale >> 5] & (1 << (iScale & 0x1f))) ? false : true;
   if (print_iScale) {
-    iScale_printed[iScale>>5] |= (1<<(iScale &0x1f));
-    Serial.printf("%4u : %6u %6u %4u:%4u %4u:%4u\n", iScale, irisThreshold, irisScale, min_d, max_d, min_a,max_a);
+    iScale_printed[iScale >> 5] |= (1 << (iScale & 0x1f));
+    Serial.printf("%4u : %6u %6u %4u:%4u %4u:%4u\n", iScale, irisThreshold, irisScale, min_d, max_d, min_a, max_a);
   }
 #endif
 
@@ -644,7 +644,7 @@ extern unsigned long _ebss;
 extern unsigned long _estack;
 
 void DumpMemoryInfo() {
-#if defined(__IMXRT1062__)
+#if defined(__IMXRT1062__) && defined(DEBUG_MEMORY)
   uint32_t flexram_config = IOMUXC_GPR_GPR17;
   Serial.printf("IOMUXC_GPR_GPR17:%x IOMUXC_GPR_GPR16:%x IOMUXC_GPR_GPR14:%x\n",
                 flexram_config, IOMUXC_GPR_GPR16, IOMUXC_GPR_GPR14);
@@ -659,16 +659,16 @@ void DumpMemoryInfo() {
   Serial.printf("ITCM init range: %x - %x Count: %u\n", &_stext, &_etext, (uint32_t)&_etext - (uint32_t)&_stext);
   Serial.printf("DTCM init range: %x - %x Count: %u\n", &_sdata, &_edata, (uint32_t)&_edata - (uint32_t)&_sdata);
   Serial.printf("DTCM cleared range: %x - %x Count: %u\n", &_sbss, &_ebss, (uint32_t)&_ebss - (uint32_t)&_sbss);
-  Serial.println("Now fill rest of DTCM with known pattern"); Serial.flush(); //
+  Serial.printf("Now fill rest of DTCM with known pattern(%x - %x\n", (&_ebss + 1), (&itcm_size - 10)); Serial.flush(); //
   // Guess of where it is safe to fill memory... Maybe address of last variable we have defined - some slop...
-  for (uint32_t *pfill = (&_ebss + 1); pfill < (&itcm_size - 10); pfill++) {
+  for (uint32_t *pfill = (&_ebss + 32); pfill < (&itcm_size - 10); pfill++) {
     *pfill = 0x01020304;  // some random value
   }
 #endif
 }
 void EstimateStackUsage() {
-#if defined(__IMXRT1062__)
-  uint32_t *pmem = (&_ebss + 1);
+#if defined(__IMXRT1062__) && defined(DEBUG_MEMORY)
+  uint32_t *pmem = (&_ebss + 32);
   while (*pmem == 0x01020304) pmem++;
   Serial.printf("Estimated max stack usage: %d\n", (uint32_t)&_estack - (uint32_t)pmem);
 #endif
