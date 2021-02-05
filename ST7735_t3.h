@@ -772,7 +772,7 @@ class ST7735_t3 : public Print
 	    x+=_originx;
 	    y+=_originy;
 
-	  	//if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
+	  	if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
 
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
