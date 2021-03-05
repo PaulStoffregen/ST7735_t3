@@ -294,7 +294,7 @@ class ST7735_t3 : public Print
       int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
     void getTextBounds(const String &str, int16_t x, int16_t y,
       int16_t *x1, int16_t *y1, uint16_t *w, uint16_t *h);
-	int16_t strPixelLen(const char * str);
+	int16_t strPixelLen(const char * str, uint16_t cb);
 
 	// added support for drawing strings/numbers/floats with centering
 	// modified from tft_ili9341_ESP github library
@@ -303,7 +303,7 @@ class ST7735_t3 : public Print
 	int16_t  drawFloat(float floatNumber,int decimal,int poX, int poY);   
 	// Handle char arrays
 	int16_t drawString(const String& string, int poX, int poY);
-	int16_t drawString1(char string[], int16_t len, int poX, int poY);
+	int16_t drawString(const char string[], int16_t len, int poX, int poY);
 
 	void setTextDatum(uint8_t datum);
 	
