@@ -388,14 +388,68 @@ void ST7735_t3::setBitrate(uint32_t n)
 /***************************************************************/
 #elif defined(__MKL26Z64__)
 
+void ST7735_t3::waitTransmitComplete()  {
+	if(!_pkinetisl_spi) return; // Software SPI don't do anything
+	while (_data_sent_not_completed) {
+		uint16_t timeout_count = 0xff; // hopefully enough 
+		while (!(_pkinetisl_spi->S & SPI_S_SPRF) && timeout_count--) ; // wait 
+		uint8_t d __attribute__((unused));
+		d = _pkinetisl_spi->DL;
+		d = _pkinetisl_spi->DH;
+		_data_sent_not_completed--; // We hopefully received our data...
+	}
+}
+
+void ST7735_t3::spiwrite16(uint16_t data)  {
+	if (_pkinetisl_spi) {
+		if (!(_pkinetisl_spi->C2 & SPI_C2_SPIMODE)) {
+			// Wait to change modes until any pending output has been done.
+			waitTransmitComplete();
+			_pkinetisl_spi->C2 = SPI_C2_SPIMODE; // make sure 8 bit mode.
+		}
+		uint8_t s;
+		do {
+			s = _pkinetisl_spi->S;
+			 // wait if output buffer busy.
+			// Clear out buffer if there is something there...
+			if  ((s & SPI_S_SPRF)) {
+				uint8_t d __attribute__((unused));
+				d = _pkinetisl_spi->DL;
+				d = _pkinetisl_spi->DH;
+				_data_sent_not_completed--; 	// let system know we sent something	
+			}
+
+		} while (!(s & SPI_S_SPTEF) || (s & SPI_S_SPRF));
+
+		_pkinetisl_spi->DL = data; 		// output low byte
+		_pkinetisl_spi->DH = data >> 8; // output high byte
+		_data_sent_not_completed++; 	// let system know we sent something	
+	} else {
+		// call bitbang functions	
+		spiwrite(data >> 8);
+		spiwrite(data);
+	}
+}
 
 inline void ST7735_t3::spiwrite(uint8_t c)
 {
 //Serial.println(c, HEX);
-	if (hwSPI) {
-		SPI.transfer(c);
-	} else if (hwSPI1) {
-		SPI1.transfer(c);
+	if (_pkinetisl_spi) {
+		if (_pkinetisl_spi->C2 & SPI_C2_SPIMODE) {
+			// Wait to change modes until any pending output has been done.
+			waitTransmitComplete();
+			_pkinetisl_spi->C2 = 0; // make sure 8 bit mode.
+		}
+		while (!(_pkinetisl_spi->S & SPI_S_SPTEF)) ; // wait if output buffer busy.
+		// Clear out buffer if there is something there...
+		if  ((_pkinetisl_spi->S & SPI_S_SPRF)) {
+			uint8_t d __attribute__((unused));
+			d = _pkinetisl_spi->DL;
+			_data_sent_not_completed--;
+		} 
+		_pkinetisl_spi->DL = c; // output byte
+		_data_sent_not_completed++; // let system know we sent something	
+
 	} else {
 		// Fast SPI bitbang swiped from LPD8806 library
 		for(uint8_t bit = 0x80; bit; bit >>= 1) {
@@ -409,39 +463,42 @@ inline void ST7735_t3::spiwrite(uint8_t c)
 
 void ST7735_t3::writecommand(uint8_t c)
 {
-	*rsport &= ~rspinmask;
+	setCommandMode();
 	spiwrite(c);
 }
 void ST7735_t3::writecommand_last(uint8_t c)
 {
-	*rsport &= ~rspinmask;
+	setCommandMode();
 	spiwrite(c);
+	waitTransmitComplete();
 }
 
 void ST7735_t3::writedata(uint8_t c)
 {
-	*rsport |=  rspinmask;
+	setDataMode();
 	spiwrite(c);
 } 
 
 void ST7735_t3::writedata_last(uint8_t c)
 {
-	*rsport |=  rspinmask;
+	setDataMode();
 	spiwrite(c);
+	waitTransmitComplete();
 } 
 
 void ST7735_t3::writedata16(uint16_t d)
 {
-	*rsport |=  rspinmask;
-	spiwrite(d >> 8);
-	spiwrite(d);
+	setDataMode();
+	spiwrite16(d);
 } 
 
 void ST7735_t3::writedata16_last(uint16_t d)
 {
-	*rsport |=  rspinmask;
-	spiwrite(d >> 8);
-	spiwrite(d);
+	setDataMode();
+	spiwrite16(d);
+	waitTransmitComplete();
+	_pkinetisl_spi->C2 = 0; // Set back to 8 bit mode...
+	_pkinetisl_spi->S;	// Read in the status;
 } 
 
 void ST7735_t3::setBitrate(uint32_t n)
@@ -595,7 +652,16 @@ static const uint8_t PROGMEM
       0x00, 0x4F,                   //     XEND = 79
     ST7735_RASET,   4,              //  2: Row addr set, 4 args, no delay:
       0x00, 0x00,                   //     XSTART = 0
-      0x00, 0x9F },                 //     XEND = 159
+      0x00, 0x9F},                 //     XEND = 159
+  Rcmd2minist7735s[] = {
+    3,                        //  2 commands in list:
+    ST7735_CASET  , 4      ,  //  1: Column addr set, 4 args, no delay:
+      0x00, 0x00+26,             //     XSTART = 0
+      0x00, 0x7F+26,             //     XEND = 127
+    ST7735_RASET  , 4      ,  //  2: Row addr set, 4 args, no delay:
+      0x00, 0x00+1,             //     XSTART = 0
+      0x00, 0x4F+1,           //     XEND = 79
+    ST7735_INVON,  0},			// these displays need colors inversed
 
   Rcmd3[] = {                 // Init for 7735R, part 3 (red or green tab)
     4,                        //  4 commands in list:
@@ -817,6 +883,7 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 
     // Teensy LC
 #elif defined(__MKL26Z64__)
+	// BUGBUG:: cleanup use SPI tables to confirm, like above. 
 	hwSPI1 = false;
 	if (_sid == (uint8_t)-1) _sid = 11;
 	if (_sclk == (uint8_t)-1) _sclk = 13;
@@ -846,11 +913,14 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		if (_sclk == 14) SPI.setSCK(14);
 		if (_sid == 7) SPI.setMOSI(7);
 		SPI.begin();
+		_pkinetisl_spi = &KINETISL_SPI0;
 	} else if(hwSPI1) { // Using hardware SPI
 		SPI1.setSCK(_sclk);
 		SPI1.setMOSI(_sid);
 		SPI1.begin();
+		_pkinetisl_spi = &KINETISL_SPI1;
 	} else {
+		_pkinetisl_spi = nullptr;
 		pinMode(_sclk, OUTPUT);
 		pinMode(_sid , OUTPUT);
 		clkport     = portOutputRegister(digitalPinToPort(_sclk));
@@ -862,6 +932,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 	}
 	// toggle RST low to reset; CS low so it'll listen to us
 	*csport &= ~cspinmask;
+
+	_dcpinAsserted = 2;	// Should be forced on next call
+	_data_sent_not_completed = 0;
 
 #endif
 	// BUGBUG
@@ -905,12 +978,18 @@ void ST7735_t3::initR(uint8_t options)
 		commandList(Rcmd2green144);
 		_colstart = 0;
 		_rowstart = 32;
-	  } else if(options == INITR_MINI160x80) {
+	} else if(options == INITR_MINI160x80) {
 	    _screenHeight   = ST7735_TFTHEIGHT_160;
 	    _screenWidth    = ST7735_TFTWIDTH_80;
 	    commandList(Rcmd2green160x80);
 	    _colstart = 24;
 	    _rowstart = 0;
+	} else if (options == INITR_MINI160x80_ST7735S) {
+	    _screenHeight   = 160;
+	    _screenWidth    = 80;
+	    commandList(Rcmd2minist7735s);
+	    _colstart = 26;
+	    _rowstart = 1;
 	} else {
 		// _colstart, _rowstart left at default '0' values
 		commandList(Rcmd2red);
@@ -924,7 +1003,8 @@ void ST7735_t3::initR(uint8_t options)
 	}
 
 	tabcolor = options;
-	setRotation(0);
+	setRotation(0);	
+
 }
 
 
@@ -3855,7 +3935,7 @@ void	ST7735_t3::initDMASettings(void)
 	// to remove tearing and the like...I know with 256 it will be either 256 or 248...
 	_dma_buffer_size = ST77XX_DMA_BUFFER_SIZE;
 	_dma_cnt_sub_frames_per_frame = (_count_pixels) / _dma_buffer_size;
-	while ((_dma_cnt_sub_frames_per_frame * _dma_buffer_size) != (_count_pixels)) {
+	while ((uint32_t)(_dma_cnt_sub_frames_per_frame * _dma_buffer_size) != (_count_pixels)) {
 		_dma_buffer_size--;
 		_dma_cnt_sub_frames_per_frame = (_count_pixels) / _dma_buffer_size;		
 	}

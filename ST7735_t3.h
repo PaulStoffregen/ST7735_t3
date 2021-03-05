@@ -56,6 +56,7 @@
 #define INITR_144GREENTAB   0x1
 #define INITR_144GREENTAB_OFFSET   0x4
 #define INITR_MINI160x80  0x05
+#define INITR_MINI160x80_ST7735S 0x06
 
 #define INIT_ST7789_TABCOLOR 42  // Not used except as a indicator to the code... 
 
@@ -138,6 +139,10 @@
 #define ST7735_t3_font_t ILI9341_t3_font_t
 
 // Lets see about supporting Adafruit fonts as well?
+#if __has_include(<gfxfont.h>)
+  #include <gfxfont.h>
+#endif
+
 #ifndef _GFXFONT_H_
 #define _GFXFONT_H_
 
@@ -398,7 +403,7 @@ class ST7735_t3 : public Print
   uint8_t  tabcolor;
 
   void     spiwrite(uint8_t),
-  		   spiwrite16(uint16_t d),
+  		     spiwrite16(uint16_t d),
            writecommand(uint8_t c),
            writecommand_last(uint8_t c),
            writedata(uint8_t d),
@@ -591,7 +596,11 @@ class ST7735_t3 : public Print
   uint32_t ctar;
 #endif
 #if defined(__MKL26Z64__)
-volatile uint8_t *dataport, *clkport, *csport, *rsport;
+  KINETISL_SPI_t *_pkinetisl_spi;
+  uint8_t _dcpinAsserted;
+  uint8_t _data_sent_not_completed;
+
+  volatile uint8_t *dataport, *clkport, *csport, *rsport;
   uint8_t  _cs, _rs, _rst, _sid, _sclk,
            datapinmask, clkpinmask, cspinmask, rspinmask;
   boolean  hwSPI1;
@@ -606,6 +615,25 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
     if (hwSPI) SPI.endTransaction(); 
     else if (hwSPI1)  SPI1.endTransaction();  
   }
+
+  void waitTransmitComplete();
+
+  void setCommandMode() __attribute__((always_inline)) {
+    if (_dcpinAsserted != 1) {
+      waitTransmitComplete();
+      *rsport  &= ~rspinmask;
+      _dcpinAsserted = 1;
+    }
+  }
+
+  void setDataMode() __attribute__((always_inline)) {
+    if (_dcpinAsserted != 0) {
+      waitTransmitComplete();
+      *rsport  |= rspinmask;
+      _dcpinAsserted = 0;
+    }
+  }
+
 #endif 
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
@@ -744,7 +772,7 @@ volatile uint8_t *dataport, *clkport, *csport, *rsport;
 	    x+=_originx;
 	    y+=_originy;
 
-	  	//if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
+	  	if((x < _displayclipx1) ||(x >= _displayclipx2) || (y < _displayclipy1) || (y >= _displayclipy2)) return;
 
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
