@@ -128,7 +128,7 @@ It also incorporates functionality from the TFT_ILI9341_ESP, https://github.com/
     int16_t  drawNumber(long long_num,int poX, int poY);
     int16_t  drawFloat(float floatNumber,int decimal,int poX, int poY);   
     int16_t drawString(const String& string, int poX, int poY);
-    int16_t drawString1(char string[], int16_t len, int poX, int poY);
+    int16_t drawString(const char string[], int16_t len, int poX, int poY);
     void setTextDatum(uint8_t datum);
 ```
 
