@@ -20,23 +20,24 @@ BR_DATUM = Bottom right
 #include <st7735_t3_font_Arial.h>
 
 
-#define TFT_MISO  1
-#define TFT_MOSI  26  //a12
-#define TFT_SCK   27  //a13
-#define TFT_DC   6 
-#define TFT_CS   0  
-#define TFT_RST  5
+#define TFT_MISO  12
+#define TFT_MOSI  11  //a12
+#define TFT_SCK   13  //a13
+#define TFT_DC   9 
+#define TFT_CS   10  
+#define TFT_RST  8
 
-ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
+ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_RST);
 
 unsigned long drawTime = 0;
 
 void setup(void) {
   Serial.begin(115200);
-  SPI.begin();
-  tft.init(240, 320);
+  Serial.print("hello!");
+  
+  tft.initR(INITR_144GREENTAB);
   tft.setRotation(3);
-  tft.setFont(Arial_18);
+  tft.setFont(Arial_10);
   //tft.setTextSize(4);
 }
 
@@ -49,13 +50,13 @@ void loop() {
     
     tft.setTextDatum(datum);
     
-    tft.drawNumber(88,160,60);
+    tft.drawNumber(88,64,50);
     tft.fillCircle(160,120,5,ST7735_RED);
     
-    tft.setTextDatum(MC_DATUM);
+    tft.setTextDatum(datum);
     
     tft.setTextColor(ST7735_YELLOW);
-    tft.drawString("TEENSY 4",160,120);
+    tft.drawString("TEENSY 4",3,64,70);
     delay(1000);
     tft.fillScreen(ST7735_BLACK);
   }
@@ -63,14 +64,14 @@ void loop() {
   tft.setTextDatum(MC_DATUM);
   
   tft.setTextColor(ST7735_BLACK);
-  tft.drawString("X",160,120);
+  tft.drawString("X",64,70);
   delay(1000);
   tft.fillScreen(ST7735_BLACK);
   
   tft.setTextDatum(MC_DATUM);
   
   tft.setTextColor(ST7735_BLACK);
-  tft.drawString("X",160,120);
+  tft.drawString("X",64,70);
   delay(1000);
   tft.fillScreen(ST7735_BLACK);
 
@@ -80,19 +81,19 @@ void loop() {
 
   //Test floating point drawing function
   float test = 67.125;
-  tft.drawFloat(test, 4, 160, 180);
+  tft.drawFloat(test, 4,64,70);
   delay(1000);
   tft.fillScreen(ST7735_BLACK);
   test = -0.555555;
-  tft.drawFloat(test, 3, 160, 180);
+  tft.drawFloat(test, 3, 64,70);
   delay(1000);
   tft.fillScreen(ST7735_BLACK);
   test = 0.1;
-  tft.drawFloat(test, 4, 160, 180);
+  tft.drawFloat(test, 4, 64,70);
   delay(1000);
   tft.fillScreen(ST7735_BLACK);
   test = 9999999;
-  tft.drawFloat(test, 1, 160, 180);
+  tft.drawFloat(test, 1, 64,70);
   delay(1000);
   
   tft.fillCircle(160,180,5,ST7735_YELLOW);

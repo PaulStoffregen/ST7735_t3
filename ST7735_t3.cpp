@@ -1925,7 +1925,7 @@ int16_t ST7735_t3::drawString(const String& string, int poX, int poY)
   return drawString(buffer, len-2, poX, poY);
 }
 
-int16_t ST7735_t3::drawString(char string[], int16_t len, int poX, int poY)
+int16_t ST7735_t3::drawString(const char string[], int16_t len, int poX, int poY)
 {
   int16_t sumX = 0;
   uint8_t padding = 1/*, baseline = 0*/;
