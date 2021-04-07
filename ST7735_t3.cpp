@@ -1337,6 +1337,11 @@ void ST7735_t3::readRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t *p
 // Now lets see if we can writemultiple pixels
 void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors)
 {
+	if (x == CENTER)
+		x = (_width - w) / 2;
+	if (y == CENTER)
+		y = (_height - h) / 2;
+
 	x+=_originx;
 	y+=_originy;
 
