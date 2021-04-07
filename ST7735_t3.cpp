@@ -1402,6 +1402,153 @@ void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint
 	endSPITransaction();
 }
 
+void ST7735_t3::writeSubImageRect(int16_t x, int16_t y, int16_t w, int16_t h, 
+  int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, const uint16_t *pcolors)
+{
+  if (x == CENTER) x = (_width - w) / 2;
+  if (y == CENTER) y = (_height - h) / 2;
+  x+=_originx;
+  y+=_originy;
+  // Rectangular clipping 
+
+  // See if the whole thing out of bounds...
+  if((x >= _displayclipx2) || (y >= _displayclipy2)) return;
+  if (((x+w) <= _displayclipx1) || ((y+h) <= _displayclipy1)) return;
+
+  // Now lets use or image offsets to get to the first pixels data
+  pcolors += image_offset_y * image_width + image_offset_x;
+
+  // In these cases you can not do simple clipping, as we need to synchronize the colors array with the
+  // We can clip the height as when we get to the last visible we don't have to go any farther. 
+  // also maybe starting y as we will advance the color array. 
+  if(y < _displayclipy1) {
+    int dy = (_displayclipy1 - y);
+    h -= dy; 
+    pcolors += (dy * image_width); // Advance color array by that number of rows in the image 
+    y = _displayclipy1;   
+  }
+
+  if((y + h - 1) >= _displayclipy2) h = _displayclipy2 - y;
+
+  // For X see how many items in color array to skip at start of row and likewise end of row 
+  if(x < _displayclipx1) {
+    uint16_t x_clip_left = _displayclipx1-x; 
+    w -= x_clip_left; 
+    x = _displayclipx1;   
+    pcolors += x_clip_left;  // pre index the colors array.
+  }
+  if((x + w - 1) >= _displayclipx2) {
+    uint16_t x_clip_right = w;
+    w = _displayclipx2  - x;
+    x_clip_right -= w; 
+  } 
+
+  #ifdef ENABLE_ST77XX_FRAMEBUFFER
+  if (_use_fbtft) {
+    uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
+    for (;h>0; h--) {
+      const uint16_t *pcolors_row = pcolors; 
+      uint16_t * pfbPixel = pfbPixel_row;
+      for (int i = 0 ;i < w; i++) {
+        *pfbPixel++ = *pcolors++;
+      }
+      pfbPixel_row += _width;
+      pcolors = pcolors_row + image_width;
+    }
+    return; 
+  }
+  #endif
+
+  beginSPITransaction();
+  setAddr(x, y, x+w-1, y+h-1);
+  writecommand(ST7735_RAMWR);
+  for(y=h; y>0; y--) {
+    const uint16_t *pcolors_row = pcolors; 
+    for(x=w; x>1; x--) {
+      writedata16(*pcolors++);
+    }
+    writedata16_last(*pcolors++);
+    pcolors = pcolors_row + image_width;
+  }
+  endSPITransaction();
+}
+
+void ST7735_t3::writeSubImageRectBytesReversed(int16_t x, int16_t y, int16_t w, int16_t h, 
+  int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, const uint16_t *pcolors)
+{
+  if (x == CENTER) x = (_width - w) / 2;
+  if (y == CENTER) y = (_height - h) / 2;
+  x+=_originx;
+  y+=_originy;
+  // Rectangular clipping 
+
+  // See if the whole thing out of bounds...
+  if((x >= _displayclipx2) || (y >= _displayclipy2)) return;
+  if (((x+w) <= _displayclipx1) || ((y+h) <= _displayclipy1)) return;
+
+  // Now lets use or image offsets to get to the first pixels data
+  pcolors += image_offset_y * image_width + image_offset_x;
+
+  // In these cases you can not do simple clipping, as we need to synchronize the colors array with the
+  // We can clip the height as when we get to the last visible we don't have to go any farther. 
+  // also maybe starting y as we will advance the color array. 
+  if(y < _displayclipy1) {
+    int dy = (_displayclipy1 - y);
+    h -= dy; 
+    pcolors += (dy * image_width); // Advance color array by that number of rows in the image 
+    y = _displayclipy1;   
+  }
+
+  if((y + h - 1) >= _displayclipy2) h = _displayclipy2 - y;
+
+  // For X see how many items in color array to skip at start of row and likewise end of row 
+  if(x < _displayclipx1) {
+    uint16_t x_clip_left = _displayclipx1-x; 
+    w -= x_clip_left; 
+    x = _displayclipx1;   
+    pcolors += x_clip_left;  // pre index the colors array.
+  }
+  if((x + w - 1) >= _displayclipx2) {
+    uint16_t x_clip_right = w;
+    w = _displayclipx2  - x;
+    x_clip_right -= w; 
+  } 
+
+  #ifdef ENABLE_ST77XX_FRAMEBUFFER
+  if (_use_fbtft) {
+    uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
+    for (;h>0; h--) {
+      const uint16_t *pcolors_row = pcolors; 
+      uint16_t * pfbPixel = pfbPixel_row;
+      for (int i = 0 ;i < w; i++) {
+        *pfbPixel++ = *pcolors++;
+      }
+      pfbPixel_row += _width;
+      pcolors = pcolors_row + image_width;
+    }
+    return; 
+  }
+  #endif
+
+  beginSPITransaction();
+  setAddr(x, y, x+w-1, y+h-1);
+  writecommand(ST7735_RAMWR);
+  for(y=h; y>0; y--) {
+    const uint16_t *pcolors_row = pcolors; 
+    for(x=w; x>1; x--) {
+      uint16_t color = *pcolors++;
+      color = ((color & 0xff) << 8) + (color >> 8);
+      writedata16(color);
+    }
+      uint16_t color = *pcolors;
+      color = ((color & 0xff) << 8) + (color >> 8);
+      writedata16_last(color);
+    pcolors = pcolors_row + image_width;
+  }
+  endSPITransaction();
+}
+
+
 ///
 ///
 ///

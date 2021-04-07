@@ -364,6 +364,12 @@ class ST7735_t3 : public Print
   */
   // Useful methods added from ili9341_t3 
   void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
+  void writeSubImageRect(int16_t x, int16_t y, int16_t w, int16_t h, 
+                        int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, 
+                        const uint16_t *pcolors);
+  void writeSubImageRectBytesReversed(int16_t x, int16_t y, int16_t w, int16_t h, 
+                        int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, 
+                        const uint16_t *pcolors);
 
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
