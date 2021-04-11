@@ -364,6 +364,52 @@ class ST7735_t3 : public Print
   */
   // Useful methods added from ili9341_t3 
   void writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint16_t *pcolors);
+  void writeSubImageRect(int16_t x, int16_t y, int16_t w, int16_t h, 
+                        int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, 
+                        const uint16_t *pcolors);
+  void writeSubImageRectBytesReversed(int16_t x, int16_t y, int16_t w, int16_t h, 
+                        int16_t image_offset_x, int16_t image_offset_y, int16_t image_width, int16_t image_height, 
+                        const uint16_t *pcolors);
+  // writeRect8BPP -  write 8 bit per pixel paletted bitmap
+  //          bitmap data in array at pixels, one byte per
+  //pixel
+  //          color palette data in array at palette
+  void writeRect8BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                     const uint8_t *pixels, const uint16_t *palette);
+
+  // writeRect4BPP -  write 4 bit per pixel paletted bitmap
+  //          bitmap data in array at pixels, 4 bits per
+  //pixel
+  //          color palette data in array at palette
+  //          width must be at least 2 pixels
+  void writeRect4BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                     const uint8_t *pixels, const uint16_t *palette);
+
+  // writeRect2BPP -  write 2 bit per pixel paletted bitmap
+  //          bitmap data in array at pixels, 4 bits per
+  //pixel
+  //          color palette data in array at palette
+  //          width must be at least 4 pixels
+  void writeRect2BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                     const uint8_t *pixels, const uint16_t *palette);
+
+  // writeRect1BPP -  write 1 bit per pixel paletted bitmap
+  //          bitmap data in array at pixels, 4 bits per
+  //pixel
+  //          color palette data in array at palette
+  //          width must be at least 8 pixels
+  void writeRect1BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                     const uint8_t *pixels, const uint16_t *palette);
+
+  // writeRectNBPP -  write N(1, 2, 4, 8) bit per pixel paletted bitmap
+  //          bitmap data in array at pixels
+  //  Currently writeRect1BPP, writeRect2BPP, writeRect4BPP use this to do all
+  //  of the work.
+  //
+  void writeRectNBPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                     uint8_t bits_per_pixel, const uint8_t *pixels,
+                     const uint16_t *palette);
+
 
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
