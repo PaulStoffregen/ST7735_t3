@@ -1553,6 +1553,238 @@ void ST7735_t3::writeSubImageRectBytesReversed(int16_t x, int16_t y, int16_t w, 
   endSPITransaction();
 }
 
+// writeRect8BPP - 	write 8 bit per pixel paletted bitmap
+//					bitmap data in array at pixels, one byte per
+//pixel
+//					color palette data in array at palette
+void ST7735_t3::writeRect8BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                                const uint8_t *pixels,
+                                const uint16_t *palette) {
+  // Serial.printf("\nWR8: %d %d %d %d %x\n", x, y, w, h, (uint32_t)pixels);
+  x += _originx;
+  y += _originy;
+
+  uint16_t x_clip_left =
+      0; // How many entries at start of colors to skip at start of row
+  uint16_t x_clip_right =
+      0; // how many color entries to skip at end of row for clipping
+  // Rectangular clipping
+
+  // See if the whole thing out of bounds...
+  if ((x >= _displayclipx2) || (y >= _displayclipy2))
+    return;
+  if (((x + w) <= _displayclipx1) || ((y + h) <= _displayclipy1))
+    return;
+
+  // In these cases you can not do simple clipping, as we need to synchronize
+  // the colors array with the
+  // We can clip the height as when we get to the last visible we don't have to
+  // go any farther.
+  // also maybe starting y as we will advance the color array.
+  if (y < _displayclipy1) {
+    int dy = (_displayclipy1 - y);
+    h -= dy;
+    pixels += (dy * w); // Advance color array to
+    y = _displayclipy1;
+  }
+
+  if ((y + h - 1) >= _displayclipy2)
+    h = _displayclipy2 - y;
+
+  // For X see how many items in color array to skip at start of row and
+  // likewise end of row
+  if (x < _displayclipx1) {
+    x_clip_left = _displayclipx1 - x;
+    w -= x_clip_left;
+    x = _displayclipx1;
+  }
+  if ((x + w - 1) >= _displayclipx2) {
+    x_clip_right = w;
+    w = _displayclipx2 - x;
+    x_clip_right -= w;
+  }
+// Serial.printf("WR8C: %d %d %d %d %x- %d %d\n", x, y, w, h, (uint32_t)pixels,
+// x_clip_right, x_clip_left);
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+  if (_use_fbtft) {
+    uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
+    for (; h > 0; h--) {
+      pixels += x_clip_left;
+      uint16_t *pfbPixel = pfbPixel_row;
+      for (int i = 0; i < w; i++) {
+        *pfbPixel++ = palette[*pixels++];
+      }
+      pixels += x_clip_right;
+      pfbPixel_row += _width;
+    }
+    return;
+  }
+#endif
+
+  beginSPITransaction();
+  setAddr(x, y, x + w - 1, y + h - 1);
+  writecommand(ST7735_RAMWR);
+  for (y = h; y > 0; y--) {
+    pixels += x_clip_left;
+    // Serial.printf("%x: ", (uint32_t)pixels);
+    for (x = w; x > 1; x--) {
+      // Serial.print(*pixels, DEC);
+      writedata16(palette[*pixels++]);
+    }
+    // Serial.println(*pixels, DEC);
+    writedata16_last(palette[*pixels++]);
+    pixels += x_clip_right;
+  }
+  endSPITransaction();
+}
+
+// writeRect4BPP - 	write 4 bit per pixel paletted bitmap
+//					bitmap data in array at pixels, 4 bits per
+//pixel
+//					color palette data in array at palette
+//					width must be at least 2 pixels
+void ST7735_t3::writeRect4BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                                const uint8_t *pixels,
+                                const uint16_t *palette) {
+  // Simply call through our helper
+  writeRectNBPP(x, y, w, h, 4, pixels, palette);
+}
+
+// writeRect2BPP - 	write 2 bit per pixel paletted bitmap
+//					bitmap data in array at pixels, 4 bits per
+//pixel
+//					color palette data in array at palette
+//					width must be at least 4 pixels
+void ST7735_t3::writeRect2BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                                const uint8_t *pixels,
+                                const uint16_t *palette) {
+  // Simply call through our helper
+  writeRectNBPP(x, y, w, h, 2, pixels, palette);
+}
+
+///============================================================================
+// writeRect1BPP - 	write 1 bit per pixel paletted bitmap
+//					bitmap data in array at pixels, 4 bits per
+//pixel
+//					color palette data in array at palette
+//					width must be at least 8 pixels
+void ST7735_t3::writeRect1BPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                                const uint8_t *pixels,
+                                const uint16_t *palette) {
+  // Simply call through our helper
+  writeRectNBPP(x, y, w, h, 1, pixels, palette);
+}
+
+///============================================================================
+// writeRectNBPP - 	write N(1, 2, 4, 8) bit per pixel paletted bitmap
+//					bitmap data in array at pixels
+//  Currently writeRect1BPP, writeRect2BPP, writeRect4BPP use this to do all of
+//  the work.
+void ST7735_t3::writeRectNBPP(int16_t x, int16_t y, int16_t w, int16_t h,
+                                uint8_t bits_per_pixel, const uint8_t *pixels,
+                                const uint16_t *palette) {
+  // Serial.printf("\nWR8: %d %d %d %d %x\n", x, y, w, h, (uint32_t)pixels);
+  x += _originx;
+  y += _originy;
+  uint8_t pixels_per_byte = 8 / bits_per_pixel;
+  uint16_t count_of_bytes_per_row =
+      (w + pixels_per_byte - 1) /
+      pixels_per_byte; // Round up to handle non multiples
+  uint8_t row_shift_init =
+      8 - bits_per_pixel; // We shift down 6 bits by default
+  uint8_t pixel_bit_mask = (1 << bits_per_pixel) - 1; // get mask to use below
+  // Rectangular clipping
+
+  // See if the whole thing out of bounds...
+  if ((x >= _displayclipx2) || (y >= _displayclipy2))
+    return;
+  if (((x + w) <= _displayclipx1) || ((y + h) <= _displayclipy1))
+    return;
+
+  // In these cases you can not do simple clipping, as we need to synchronize
+  // the colors array with the
+  // We can clip the height as when we get to the last visible we don't have to
+  // go any farther.
+  // also maybe starting y as we will advance the color array.
+  // Again assume multiple of 8 for width
+  if (y < _displayclipy1) {
+    int dy = (_displayclipy1 - y);
+    h -= dy;
+    pixels += dy * count_of_bytes_per_row;
+    y = _displayclipy1;
+  }
+
+  if ((y + h - 1) >= _displayclipy2)
+    h = _displayclipy2 - y;
+
+  // For X see how many items in color array to skip at start of row and
+  // likewise end of row
+  if (x < _displayclipx1) {
+    uint16_t x_clip_left = _displayclipx1 - x;
+    w -= x_clip_left;
+    x = _displayclipx1;
+    // Now lets update pixels to the rigth offset and mask
+    uint8_t x_clip_left_bytes_incr = x_clip_left / pixels_per_byte;
+    pixels += x_clip_left_bytes_incr;
+    row_shift_init =
+        8 -
+        (x_clip_left - (x_clip_left_bytes_incr * pixels_per_byte) + 1) *
+            bits_per_pixel;
+  }
+
+  if ((x + w - 1) >= _displayclipx2) {
+    w = _displayclipx2 - x;
+  }
+
+  const uint8_t *pixels_row_start =
+      pixels; // remember our starting position offset into row
+
+#ifdef ENABLE_ST77XX_FRAMEBUFFER
+  if (_use_fbtft) {
+    uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
+    for (; h > 0; h--) {
+      uint16_t *pfbPixel = pfbPixel_row;
+      pixels = pixels_row_start;            // setup for this row
+      uint8_t pixel_shift = row_shift_init; // Setup mask
+
+      for (int i = 0; i < w; i++) {
+        *pfbPixel++ = palette[((*pixels) >> pixel_shift) & pixel_bit_mask];
+        if (!pixel_shift) {
+          pixel_shift = 8 - bits_per_pixel; // setup next mask
+          pixels++;
+        } else {
+          pixel_shift -= bits_per_pixel;
+        }
+      }
+      pfbPixel_row += _width;
+      pixels_row_start += count_of_bytes_per_row;
+    }
+    return;
+  }
+#endif
+
+  beginSPITransaction();
+  setAddr(x, y, x + w - 1, y + h - 1);
+  writecommand(ST7735_RAMWR);
+  for (; h > 0; h--) {
+    pixels = pixels_row_start;            // setup for this row
+    uint8_t pixel_shift = row_shift_init; // Setup mask
+
+    for (int i = 0; i < w; i++) {
+      writedata16(palette[((*pixels) >> pixel_shift) & pixel_bit_mask]);
+      if (!pixel_shift) {
+        pixel_shift = 8 - bits_per_pixel; // setup next mask
+        pixels++;
+      } else {
+        pixel_shift -= bits_per_pixel;
+      }
+    }
+    pixels_row_start += count_of_bytes_per_row;
+  }
+  writecommand_last(ST7735_NOP);
+  endSPITransaction();
+}
+
 
 ///
 ///
