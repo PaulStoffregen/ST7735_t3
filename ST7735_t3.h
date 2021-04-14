@@ -180,10 +180,8 @@ typedef struct {
 // as to move it out of the memory that is cached...
 #define ST77XX_DMA_BUFFER_SIZE 512
 typedef struct {
-  DMASetting      _dmasettings[2];
+  DMASetting      _dmasettings[3];
   DMAChannel      _dmatx;
-  uint16_t        _dma_buffer1[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));
-  uint16_t        _dma_buffer2[ST77XX_DMA_BUFFER_SIZE] __attribute__ ((aligned(4)));  
 } ST7735DMA_Data;
 #endif
 
@@ -413,7 +411,11 @@ class ST7735_t3 : public Print
 
 // Frame buffer support
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
-  enum {ST77XX_DMA_INIT=0x01, ST77XX_DMA_CONT=0x02, ST77XX_DMA_FINISH=0x04,ST77XX_DMA_ACTIVE=0x80};
+  enum {ST77XX_DMA_INIT=0x01, 
+        ST77XX_DMA_EVER_INIT = 0x08,
+        ST77XX_DMA_CONT=0x02, 
+        ST77XX_DMA_FINISH=0x04,
+        ST77XX_DMA_ACTIVE=0x80};
 
   // added support to use optional Frame buffer
   void  setFrameBuffer(uint16_t *frame_buffer);
@@ -426,8 +428,10 @@ class ST7735_t3 : public Print
   void  dumpDMASettings();
   uint16_t *getFrameBuffer() {return _pfbtft;}
   uint32_t frameCount() {return _dma_frame_count; }
+  uint16_t subFrameCount() { return _dma_sub_frame_count; }
   boolean asyncUpdateActive(void)  {return (_dma_state & ST77XX_DMA_ACTIVE);}
   void  initDMASettings(void);
+  void setFrameCompleteCB(void (*pcb)(), bool fCallAlsoHalfDone = false);
   #else
   // added support to use optional Frame buffer
   void  setFrameBuffer(uint16_t *frame_buffer) {return;}
@@ -442,6 +446,9 @@ class ST7735_t3 : public Print
   uint32_t frameCount() {return 0; }
   uint16_t *getFrameBuffer() {return NULL;}
   boolean asyncUpdateActive(void)  {return false;}
+  uint16_t subFrameCount() { return 0; }
+  void setFrameCompleteCB(void (*pcb)(), bool fCallAlsoHalfDone = false) {return;}
+
   #endif
 
 
@@ -688,6 +695,8 @@ class ST7735_t3 : public Print
   uint8_t   _use_fbtft;         // Are we in frame buffer mode?
   uint16_t  *_we_allocated_buffer;      // We allocated the buffer; 
   uint32_t  _count_pixels;       // How big is the display in total pixels...
+  void (*_frame_complete_callback)() = nullptr;
+  bool _frame_callback_on_HalfDone = false;
 
   // Add DMA support. 
   // Note: We have enough memory to have more than one, so could have multiple active devices (one per SPI BUS)
@@ -695,18 +704,20 @@ class ST7735_t3 : public Print
   static  ST7735_t3     *_dmaActiveDisplay[3];  // Use pointer to this as a way to get back to object...
   volatile uint8_t      _dma_state;         // DMA status
   volatile uint32_t     _dma_frame_count;   // Can return a frame count...
+  volatile uint16_t     _dma_sub_frame_count = 0; // Can return a frame count...
 
   #if defined(__MK66FX1M0__) 
   // T3.6 use Scatter/gather with chain to do transfer
   static DMASetting   _dmasettings[3][4];
   DMAChannel   _dmatx;
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
+
   #elif defined(__IMXRT1062__)  // Teensy 4.x
+  const uint8_t      _cnt_dma_settings = 3;   // how many do we need for this display?
   static ST7735DMA_Data _dma_data[3];   // one structure for each SPI buss... 
   // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
   // as to move it out of the memory that is cached...
   volatile    uint32_t _dma_pixel_index = 0;
-  volatile uint16_t _dma_sub_frame_count = 0; // Can return a frame count...
   uint16_t          _dma_buffer_size;   // the actual size we are using <= DMA_BUFFER_SIZE;
   uint16_t          _dma_cnt_sub_frames_per_frame;  
   uint32_t      _spi_fcr_save;    // save away previous FCR register value
