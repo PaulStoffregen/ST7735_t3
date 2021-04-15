@@ -713,7 +713,7 @@ class ST7735_t3 : public Print
   uint8_t      _cnt_dma_settings;   // how many do we need for this display?
 
   #elif defined(__IMXRT1062__)  // Teensy 4.x
-  const uint8_t      _cnt_dma_settings = 3;   // how many do we need for this display?
+  uint8_t       _cnt_dma_settings;   // how many do we need for this display?
   static ST7735DMA_Data _dma_data[3];   // one structure for each SPI buss... 
   // try work around DMA memory cached.  So have a couple of buffers we copy frame buffer into
   // as to move it out of the memory that is cached...

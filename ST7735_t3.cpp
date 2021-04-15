@@ -24,7 +24,7 @@
 #include <SPI.h>
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
-//#define DEBUG_ASYNC_UPDATE
+#define DEBUG_ASYNC_UPDATE
 //#define DEBUG_ASYNC_LEDS
 #ifdef DEBUG_ASYNC_LEDS
   #define DEBUG_PIN_1 0
@@ -4277,7 +4277,7 @@ void	ST7735_t3::initDMASettings(void)
 
 //	Serial.printf("cbDisplay: %u COUNT_WORDS_WRITE:%d(%x) spi_num:%d\n", _count_pixels, COUNT_WORDS_WRITE, COUNT_WORDS_WRITE, _spi_num);
 #if defined(__MK66FX1M0__) 
-    uint8_t  cnt_dma_settings = 2;   // how many do we need for this display?
+  uint8_t  cnt_dma_settings = 2;   // how many do we need for this display?
 	uint32_t COUNT_WORDS_WRITE = (_count_pixels) / 2;
 	// The 240x320 display requires us to expand to another DMA setting. 
 	if (COUNT_WORDS_WRITE >= 32768) {
@@ -4335,43 +4335,47 @@ void	ST7735_t3::initDMASettings(void)
 	else _dmatx.attachInterrupt(dmaInterrupt2);
 
 #elif defined(__IMXRT1062__)  // Teensy 4.x
-	uint32_t COUNT_WORDS_WRITE  = (height() * width()) / 3; // split into 3 parts. 
+	_cnt_dma_settings = 2;   // how many do we need for this display?
 
-  if (_dma_state & ST77XX_DMA_EVER_INIT) { // Have we init this stuff before?
-    // Try to just set the buffers...
-    _dma_data[_spi_num]._dmasettings[0].sourceBuffer(_pfbtft, (COUNT_WORDS_WRITE)*2);
-    _dma_data[_spi_num]._dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE],
-                                 COUNT_WORDS_WRITE * 2);
-    _dma_data[_spi_num]._dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE * 2],
-                                 COUNT_WORDS_WRITE * 2);
-    // and maybe the interrupt settings...
-    if (_frame_callback_on_HalfDone)
-      _dma_data[_spi_num]._dmasettings[1].interruptAtHalf();
-    else
-      _dma_data[_spi_num]._dmasettings[1].TCD->CSR &= ~DMA_TCD_CSR_INTHALF;
-  } else {
-    // First time we init...
-    _dma_data[_spi_num]._dmasettings[0].sourceBuffer(_pfbtft, (COUNT_WORDS_WRITE)*2);
-    _dma_data[_spi_num]._dmasettings[0].destination(_pimxrt_spi->TDR);
-    _dma_data[_spi_num]._dmasettings[0].TCD->ATTR_DST = 1;
-    _dma_data[_spi_num]._dmasettings[0].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[1]);
+	uint32_t COUNT_WORDS_WRITE =  (height() * width()) / 2;
+	// The 240x320 display requires us to expand to another DMA setting. 
+	if (COUNT_WORDS_WRITE >= 32768) {
+		COUNT_WORDS_WRITE = (height() * width()) / 3;
+		_cnt_dma_settings = 3;
+	}
 
-    _dma_data[_spi_num]._dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE],
-                                 COUNT_WORDS_WRITE * 2);
-    _dma_data[_spi_num]._dmasettings[1].destination(_pimxrt_spi->TDR);
-    _dma_data[_spi_num]._dmasettings[1].TCD->ATTR_DST = 1;
-    _dma_data[_spi_num]._dmasettings[1].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[2]);
-    if (_frame_callback_on_HalfDone)
-      _dma_data[_spi_num]._dmasettings[1].interruptAtHalf();
-    else
-      _dma_data[_spi_num]._dmasettings[1].TCD->CSR &= ~DMA_TCD_CSR_INTHALF;
+  // First time we init...
+  _dma_data[_spi_num]._dmasettings[0].sourceBuffer(_pfbtft, (COUNT_WORDS_WRITE)*2);
+  _dma_data[_spi_num]._dmasettings[0].destination(_pimxrt_spi->TDR);
+  _dma_data[_spi_num]._dmasettings[0].TCD->ATTR_DST = 1;
+  _dma_data[_spi_num]._dmasettings[0].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[1]);
 
+  _dma_data[_spi_num]._dmasettings[1].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE],
+                               COUNT_WORDS_WRITE * 2);
+  _dma_data[_spi_num]._dmasettings[1].destination(_pimxrt_spi->TDR);
+  _dma_data[_spi_num]._dmasettings[1].TCD->ATTR_DST = 1;
+
+	if (_cnt_dma_settings == 3) {
+  	_dma_data[_spi_num]._dmasettings[1].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[2]);
     _dma_data[_spi_num]._dmasettings[2].sourceBuffer(&_pfbtft[COUNT_WORDS_WRITE * 2],
                                  COUNT_WORDS_WRITE * 2);
     _dma_data[_spi_num]._dmasettings[2].destination(_pimxrt_spi->TDR);
     _dma_data[_spi_num]._dmasettings[2].TCD->ATTR_DST = 1;
     _dma_data[_spi_num]._dmasettings[2].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[0]);
     _dma_data[_spi_num]._dmasettings[2].interruptAtCompletion();
+
+		// 3 in chain so half done is half of 1...		
+	  if (_frame_callback_on_HalfDone)
+	    _dma_data[_spi_num]._dmasettings[1].interruptAtHalf();
+	  else
+	    _dma_data[_spi_num]._dmasettings[1].TCD->CSR &= ~DMA_TCD_CSR_INTHALF;
+	} else {
+    _dma_data[_spi_num]._dmasettings[1].replaceSettingsOnCompletion(_dma_data[_spi_num]._dmasettings[0]);
+    _dma_data[_spi_num]._dmasettings[1].interruptAtCompletion();
+	  if (_frame_callback_on_HalfDone)
+	    _dma_data[_spi_num]._dmasettings[0].interruptAtCompletion();
+	  else
+	    _dma_data[_spi_num]._dmasettings[0].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);
 	}
 	// Setup DMA main object
 	//Serial.println("Setup _dmatx");
@@ -4548,7 +4552,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
   if ((uint32_t)_pfbtft >= 0x20200000u)
     arm_dcache_flush(_pfbtft, _count_pixels*2);
 
-  _dma_data[_spi_num]._dmasettings[2].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);
+  _dma_data[_spi_num]._dmasettings[_cnt_dma_settings-1].TCD->CSR &= ~(DMA_TCD_CSR_DREQ);
   beginSPITransaction();
 // Doing full window.
 
@@ -4575,7 +4579,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
   if (update_cont) {
     _dma_state |= ST77XX_DMA_CONT;
   } else {
-    _dma_data[_spi_num]._dmasettings[2].disableOnCompletion();
+    _dma_data[_spi_num]._dmasettings[_cnt_dma_settings-1].disableOnCompletion();
     _dma_state &= ~ST77XX_DMA_CONT;
   }
 
@@ -4658,7 +4662,7 @@ void ST7735_t3::endUpdateAsync() {
 		_dmasettings[_spi_num][_cnt_dma_settings].disableOnCompletion();
 #endif
 #if defined(__IMXRT1062__)
-    _dma_data[_spi_num]._dmasettings[2].disableOnCompletion();
+    _dma_data[_spi_num]._dmasettings[_cnt_dma_settings-1].disableOnCompletion();
 #endif
 	}
 	#endif
