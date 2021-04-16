@@ -4657,7 +4657,7 @@ void ST7735_t3::endUpdateAsync() {
 	// make sure it is on
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_dma_state & ST77XX_DMA_CONT) {
-		_dma_state &= ~ST77XX_DMA_CONT; // Turn of the continueous mode
+		_dma_state &= ~ST77XX_DMA_CONT; // Turn off the continueous mode
 #if defined(__MK66FX1M0__)
 		_dmasettings[_spi_num][_cnt_dma_settings].disableOnCompletion();
 #endif
