@@ -24,7 +24,7 @@
 #include <SPI.h>
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
-#define DEBUG_ASYNC_UPDATE
+//#define DEBUG_ASYNC_UPDATE
 //#define DEBUG_ASYNC_LEDS
 #ifdef DEBUG_ASYNC_LEDS
   #define DEBUG_PIN_1 0
@@ -4048,7 +4048,7 @@ void ST7735_t3::process_dma_interrupt(void) {
 #elif defined(__IMXRT1062__)  // Teensy 4.x
   _dma_data[_spi_num]._dmatx.clearInterrupt();
   if (_frame_callback_on_HalfDone &&
-      (_dma_data[_spi_num]._dmatx.TCD->SADDR > _dma_data[_spi_num]._dmasettings[1].TCD->SADDR)) {
+      (_dma_data[_spi_num]._dmatx.TCD->SADDR >= _dma_data[_spi_num]._dmasettings[1].TCD->SADDR)) {
     _dma_sub_frame_count = 1; // set as partial frame.
     if (_frame_complete_callback)
       (*_frame_complete_callback)();
