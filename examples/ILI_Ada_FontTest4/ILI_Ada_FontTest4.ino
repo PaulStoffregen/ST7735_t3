@@ -56,22 +56,22 @@ const ili_fonts_test_t font_test_list[] = {
 // Note: code will detect if specified pins are the hardware SPI pins
 //       and will use hardware SPI if appropriate
 // For 1.44" and 1.8" TFT with ST7735 use
-ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
+//ST7789_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 // For 1.54" or other TFT with ST7789, This has worked with some ST7789
 // displays without CS pins, for those you can pass in -1 or 0xff for CS
 // More notes by the tft.init call
-//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
 // an output. This is much faster - also required if you want
 // to use the microSD card (see the image drawing example)
 // For 1.44" and 1.8" TFT with ST7735 use
-//ST7735_t3 tft = ST7735_t3(cs, dc, rst);
+//ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // For 1.54" TFT with ST7789
-//ST7789_t3 tft = ST7789_t3(TFT_CS,  TFT_DC, TFT_RST);
+//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_RST);
 
 
 uint8_t test_screen_rotation = 0;
