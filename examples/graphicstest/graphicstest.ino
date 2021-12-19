@@ -51,12 +51,12 @@
 // Note: code will detect if specified pins are the hardware SPI pins
 //       and will use hardware SPI if appropriate
 // For 1.44" and 1.8" TFT with ST7735 use
-//ST7789_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
+//ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 // For 1.54" or other TFT with ST7789, This has worked with some ST7789
 // displays without CS pins, for those you can pass in -1 or 0xff for CS
 // More notes by the tft.init call
-ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCK, TFT_RST);
 
 // Option 2: must use the hardware SPI pins
 // (for UNO thats sclk = 13 and sid = 11) and pin 10 must be
@@ -66,7 +66,7 @@ ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
 //ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_RST);
 
 // For 1.54" TFT with ST7789
-//ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_RST);
+ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_RST);
 
 float p = 3.1415926;
 
@@ -91,10 +91,10 @@ void setup(void) {
   //tft.setRowColStart(32,0);
 
   // Or use this initializer (uncomment) if you're using a 1.54" 240x240 TFT
-  //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
+  tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
 
   // OR use this initializer (uncomment) if using a 2.0" 320x240 TFT:
-  tft.init(240, 320);           // Init ST7789 320x240
+  //tft.init(240, 320);           // Init ST7789 320x240
 
   // OR use this initializer (uncomment) if using a 240x240 clone 
   // that does not have a CS pin2.0" 320x240 TFT:
