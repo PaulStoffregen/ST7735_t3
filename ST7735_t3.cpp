@@ -879,7 +879,9 @@ void ST7735_t3::commonInit(const uint8_t *cmdList, uint8_t mode)
 		_tcr_dc_assert = LPSPI_TCR_PCS(0);
     	_tcr_dc_not_assert = LPSPI_TCR_PCS(1);
 	}
-	maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(7));
+
+	if (hwSPI)
+		maybeUpdateTCR(_tcr_dc_not_assert | LPSPI_TCR_FRAMESZ(7));
 
     // Teensy LC
 #elif defined(__MKL26Z64__)
