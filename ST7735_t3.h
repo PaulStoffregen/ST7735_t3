@@ -833,7 +833,8 @@ class ST7735_t3 : public Print
 
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
-	  		_pfbtft[y*_screenWidth + x] = color;
+        int pixel_index = (int)y*(int)_width + x;
+	  		_pfbtft[pixel_index] = color;
 	  		return;
 	  	}
 	  	#endif
