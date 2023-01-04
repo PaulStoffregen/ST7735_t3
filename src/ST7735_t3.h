@@ -185,8 +185,9 @@ typedef struct {
 } ST7735DMA_Data;
 #endif
 
+#ifndef CL
 #define CL(_r,_g,_b) ((((_r)&0xF8)<<8)|(((_g)&0xFC)<<3)|((_b)>>3))
-
+#endif
 
 //These enumerate the text plotting alignment (reference datum point)
 #define TL_DATUM 0 // Top left (default)
@@ -577,8 +578,9 @@ class ST7735_t3 : public Print
     *(base+33) = mask;
   }
   
-  #define TCR_MASK  (LPSPI_TCR_PCS(3) | LPSPI_TCR_FRAMESZ(31) | LPSPI_TCR_CONT | LPSPI_TCR_RXMSK )
-
+#ifndef TCR_MASK
+#define TCR_MASK  (LPSPI_TCR_PCS(3) | LPSPI_TCR_FRAMESZ(31) | LPSPI_TCR_CONT | LPSPI_TCR_RXMSK )
+#endif  
   void maybeUpdateTCR(uint32_t requested_tcr_state) {
   if ((_spi_tcr_current & TCR_MASK) != requested_tcr_state) {
       bool dc_state_change = (_spi_tcr_current & LPSPI_TCR_PCS(3)) != (requested_tcr_state & LPSPI_TCR_PCS(3));
@@ -850,6 +852,9 @@ class ST7735_t3 : public Print
 // you #include ST7735_t3.h.
 // Warning the implemention of class needs to be here, else the code
 // compiled in the c++ file will cause duplicate defines in the link phase. 
+#ifdef Adafruit_GFX_Button
+#undef Adafruit_GFX_Button
+#endif
 #define Adafruit_GFX_Button ST7735_Button
 class ST7735_Button {
 public:
