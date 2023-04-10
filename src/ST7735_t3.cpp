@@ -4225,20 +4225,50 @@ void ST7735_t3::updateScreen(void)					// call to say update the screen now.
 	// Will go by buffer as maybe can do interesting things?
 	if (_use_fbtft) {
 		beginSPITransaction();
-		// Doing full window. 
-		setAddr(0, 0, _width-1, _height-1);
-		writecommand(ST7735_RAMWR);
+		if (_standard) {
+			// Doing full window. 
+			setAddr(0, 0, _width-1, _height-1);
+			writecommand(ST7735_RAMWR);
 
-		// BUGBUG doing as one shot.  Not sure if should or not or do like
-		// main code and break up into transactions...
-		uint16_t *pfbtft_end = &_pfbtft[(_count_pixels)-1];	// setup 
-		uint16_t *pftbft = _pfbtft;
+			// BUGBUG doing as one shot.  Not sure if should or not or do like
+			// main code and break up into transactions...
+			uint16_t *pfbtft_end = &_pfbtft[(_count_pixels)-1];	// setup 
+			uint16_t *pftbft = _pfbtft;
 
-		// Quick write out the data;
-		while (pftbft < pfbtft_end) {
-			writedata16(*pftbft++);
+			// Quick write out the data;
+			while (pftbft < pfbtft_end) {
+				writedata16(*pftbft++);
+			}
+			writedata16_last(*pftbft);
+		} else {
+      // setup just to output the clip rectangle area anded with updated area if
+      // enabled
+      int16_t start_x = _displayclipx1;
+      int16_t start_y = _displayclipy1;
+      int16_t end_x = _displayclipx2 - 1;
+      int16_t end_y = _displayclipy2 - 1;
+      //if (Serial) Serial.printf("updateScreen: (%u %u) - (%u %u)\n", start_x, start_y, end_x, end_y);
+      if ((start_x <= end_x) && (start_y <= end_y)) {
+        setAddr(start_x, start_y, end_x, end_y);
+        writecommand(ST7735_RAMWR);
+
+        // BUGBUG doing as one shot.  Not sure if should or not or do like
+        // main code and break up into transactions...
+        uint16_t *pfbPixel_row = &_pfbtft[start_y * _width + start_x];
+        for (uint16_t y = start_y; y <= end_y; y++) {
+          uint16_t *pfbPixel = pfbPixel_row;
+          for (uint16_t x = start_x; x < end_x; x++) {
+            writedata16(*pfbPixel++);
+          }
+          if (y < (end_y))
+            writedata16(*pfbPixel);
+          else
+            writedata16_last(*pfbPixel);
+          pfbPixel_row += _width; // setup for the next row.
+        }
+      }
+
 		}
-		writedata16_last(*pftbft);
 
 		endSPITransaction();
 	}
