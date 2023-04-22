@@ -1042,6 +1042,7 @@ void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
+    updateChangedRange(x, y); // update the range of the screen that has been changed;
 		_pfbtft[y*_width + x] = color;
 
 	} else 
@@ -1068,6 +1069,8 @@ void ST7735_t3::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
+    updateChangedRange(
+        x, y, 1, h); // update the range of the screen that has been changed;
 		uint16_t * pfbPixel = &_pfbtft[ y*_width + x];
 		while (h--) {
 			*pfbPixel = color;
@@ -1101,6 +1104,8 @@ void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
+    updateChangedRange(
+        x, y, w, 1); // update the range of the screen that has been changed;
 		if ((x&1) || (w&1)) {
 			uint16_t * pfbPixel = &_pfbtft[ y*_width + x];
 			while (w--) {
@@ -1150,6 +1155,8 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
+    updateChangedRange(
+        x, y, w, h); // update the range of the screen that has been changed;
 		if ((x&1) || (w&1)) {
 			uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 			for (;h>0; h--) {
@@ -1378,19 +1385,42 @@ void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint
 
 	#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	if (_use_fbtft) {
-		uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
-		for (;h>0; h--) {
-			uint16_t * pfbPixel = pfbPixel_row;
-			pcolors += x_clip_left;
-			for (int i = 0 ;i < w; i++) {
-				*pfbPixel++ = *pcolors++;
-			}
-			pfbPixel_row += _width;
-			pcolors += x_clip_right;
+		    uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
+    int16_t y_changed_min = _height;
+    int16_t y_changed_max = -1;
+    int16_t i_changed_min = _width;
+    int16_t i_changed_max = -1;
 
-		}
-		return;	
-	}
+    for (; h > 0; h--) {
+      uint16_t *pfbPixel = pfbPixel_row;
+      pcolors += x_clip_left;
+      for (int i = 0; i < w; i++) {
+        if (*pfbPixel != *pcolors) {
+          // pixel changed
+          *pfbPixel = *pcolors;
+          if (y < y_changed_min) y_changed_min = y;
+          if (y > y_changed_max) y_changed_max = y;
+          if (i < i_changed_min) i_changed_min = i;
+          if (i > i_changed_max) i_changed_max = i;
+
+        }
+        pfbPixel++;
+        pcolors++;
+      }
+      pfbPixel_row += _width;
+      pcolors += x_clip_right;
+      y++;
+    }
+    // See if we found any chang
+    // if any of the min/max values have default value we know that nothing changed.
+    if (y_changed_max != -1) {
+      updateChangedRange(x + i_changed_min , y_changed_min, 
+        (i_changed_max - i_changed_min) + 1, (y_changed_max - y_changed_min) + 1);
+
+      //if(Serial)Serial.printf("WRECT: %d - %d %d %d %d\n", x, i_changed_min, y_changed_min, i_changed_max, y_changed_max);
+    }
+    return;
+  }
 	#endif
 
    	beginSPITransaction();
@@ -1607,7 +1637,9 @@ void ST7735_t3::writeRect8BPP(int16_t x, int16_t y, int16_t w, int16_t h,
 // x_clip_right, x_clip_left);
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
   if (_use_fbtft) {
-    uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
+  	updateChangedRange(
+        x, y, w, h); // update the range of the screen that has been changed;
+      uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
     for (; h > 0; h--) {
       pixels += x_clip_left;
       uint16_t *pfbPixel = pfbPixel_row;
@@ -1741,7 +1773,9 @@ void ST7735_t3::writeRectNBPP(int16_t x, int16_t y, int16_t w, int16_t h,
 
 #ifdef ENABLE_ST77XX_FRAMEBUFFER
   if (_use_fbtft) {
-    uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
+  	updateChangedRange(
+        x, y, w, h); // update the range of the screen that has been changed;
+      uint16_t *pfbPixel_row = &_pfbtft[y * _width + x];
     for (; h > 0; h--) {
       uint16_t *pfbPixel = pfbPixel_row;
       pixels = pixels_row_start;            // setup for this row
@@ -2627,6 +2661,9 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 		if (_use_fbtft) {
+      updateChangedRange(
+          x, y, 6 * size_x,
+          8 * size_y); // update the range of the screen that has been changed;
 			uint16_t * pfbPixel_row = &_pfbtft[ y*_width + x];
 			for (yc=0; (yc < 8) && (y < _displayclipy2); yc++) {
 				for (yr=0; (yr < size_y) && (y < _displayclipy2); yr++) {
@@ -3041,6 +3078,12 @@ void ST7735_t3::drawFontChar(unsigned int c)
 */
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 		if (_use_fbtft) {
+      updateChangedRange(
+          start_x,
+          start_y); // update the range of the screen that has been changed;
+      updateChangedRange(
+          end_x,
+          end_y); // update the range of the screen that has been changed;
 			uint16_t * pfbPixel_row = &_pfbtft[ start_y*_width + start_x];
 			uint16_t * pfbPixel;
 			int screen_y = start_y;
@@ -3766,6 +3809,12 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 		if (_use_fbtft) {
 			// lets try to output the values directly...
+      updateChangedRange(
+          x_start,
+          y_start); // update the range of the screen that has been changed;
+      updateChangedRange(
+          x_end,
+          y_end); // update the range of the screen that has been changed;
 			uint16_t * pfbPixel_row = &_pfbtft[ y_start *_width + x_start];
 			uint16_t * pfbPixel;
 			// First lets fill in the top parts above the actual rectangle...
@@ -4225,23 +4274,67 @@ void ST7735_t3::updateScreen(void)					// call to say update the screen now.
 	// Will go by buffer as maybe can do interesting things?
 	if (_use_fbtft) {
 		beginSPITransaction();
-		// Doing full window. 
-		setAddr(0, 0, _width-1, _height-1);
-		writecommand(ST7735_RAMWR);
+		if (_standard && !_updateChangedAreasOnly) {
+			// Doing full window. 
+			setAddr(0, 0, _width-1, _height-1);
+			writecommand(ST7735_RAMWR);
 
-		// BUGBUG doing as one shot.  Not sure if should or not or do like
-		// main code and break up into transactions...
-		uint16_t *pfbtft_end = &_pfbtft[(_count_pixels)-1];	// setup 
-		uint16_t *pftbft = _pfbtft;
+			// BUGBUG doing as one shot.  Not sure if should or not or do like
+			// main code and break up into transactions...
+			uint16_t *pfbtft_end = &_pfbtft[(_count_pixels)-1];	// setup 
+			uint16_t *pftbft = _pfbtft;
 
-		// Quick write out the data;
-		while (pftbft < pfbtft_end) {
-			writedata16(*pftbft++);
+			// Quick write out the data;
+			while (pftbft < pfbtft_end) {
+				writedata16(*pftbft++);
+			}
+			writedata16_last(*pftbft);
+		} else {
+      // setup just to output the clip rectangle area anded with updated area if
+      // enabled
+      int16_t start_x = _displayclipx1;
+      int16_t start_y = _displayclipy1;
+      int16_t end_x = _displayclipx2 - 1;
+      int16_t end_y = _displayclipy2 - 1;
+
+      if (_updateChangedAreasOnly) {
+        // maybe update range of values to update...
+        if (_changed_min_x > start_x)
+          start_x = _changed_min_x;
+        if (_changed_min_y > start_y)
+          start_y = _changed_min_y;
+        if (_changed_max_x < end_x)
+          end_x = _changed_max_x;
+        if (_changed_max_y < end_y)
+          end_y = _changed_max_y;
+      }
+
+      //if (Serial) Serial.printf("updateScreen: (%u %u) - (%u %u)\n", start_x, start_y, end_x, end_y);
+      if ((start_x <= end_x) && (start_y <= end_y)) {
+        setAddr(start_x, start_y, end_x, end_y);
+        writecommand(ST7735_RAMWR);
+
+        // BUGBUG doing as one shot.  Not sure if should or not or do like
+        // main code and break up into transactions...
+        uint16_t *pfbPixel_row = &_pfbtft[start_y * _width + start_x];
+        for (uint16_t y = start_y; y <= end_y; y++) {
+          uint16_t *pfbPixel = pfbPixel_row;
+          for (uint16_t x = start_x; x < end_x; x++) {
+            writedata16(*pfbPixel++);
+          }
+          if (y < (end_y))
+            writedata16(*pfbPixel);
+          else
+            writedata16_last(*pfbPixel);
+          pfbPixel_row += _width; // setup for the next row.
+        }
+      }
+
 		}
-		writedata16_last(*pftbft);
 
 		endSPITransaction();
 	}
+  clearChangedRange(); // make sure the dirty range is updated.
 }			 
 
 #ifdef DEBUG_ASYNC_UPDATE

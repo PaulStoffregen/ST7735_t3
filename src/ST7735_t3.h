@@ -452,6 +452,12 @@ class ST7735_t3 : public Print
 
   #endif
 
+  void updateChangedAreasOnly(bool updateChangedOnly) {
+  #ifdef ENABLE_ST77XX_FRAMEBUFFER
+    _updateChangedAreasOnly = updateChangedOnly;
+#endif
+  }
+
 
  protected:
   uint8_t  tabcolor;
@@ -697,6 +703,8 @@ class ST7735_t3 : public Print
   uint8_t   _use_fbtft;         // Are we in frame buffer mode?
   uint16_t  *_we_allocated_buffer;      // We allocated the buffer; 
   uint32_t  _count_pixels;       // How big is the display in total pixels...
+  int16_t _changed_min_x, _changed_max_x, _changed_min_y, _changed_max_y;
+  bool _updateChangedAreasOnly = false; // current default off,
   void (*_frame_complete_callback)() = nullptr;
   bool _frame_callback_on_HalfDone = false;
 
@@ -748,6 +756,46 @@ class ST7735_t3 : public Print
   static void dmaInterrupt2(void);
   void process_dma_interrupt(void);
 #endif
+
+  void clearChangedRange() {
+  #ifdef ENABLE_ST77XX_FRAMEBUFFER
+    _changed_min_x = 0x7fff;
+    _changed_max_x = -1;
+    _changed_min_y = 0x7fff;
+    _changed_max_y = -1;
+   #endif 
+  }
+
+  void updateChangedRange(int16_t x, int16_t y, int16_t w, int16_t h)
+      __attribute__((always_inline)) {
+    #ifdef ENABLE_ST77XX_FRAMEBUFFER
+    if (x < _changed_min_x)
+      _changed_min_x = x;
+    if (y < _changed_min_y)
+      _changed_min_y = y;
+    x += w - 1;
+    y += h - 1;
+    if (x > _changed_max_x)
+      _changed_max_x = x;
+    if (y > _changed_max_y)
+      _changed_max_y = y;
+    //if (Serial)Serial.printf("UCR(%d %d %d %d) min:%d %d max:%d %d\n", w, y, w, h, _changed_min_x, _changed_min_y, _changed_max_x, _changed_max_y);
+   #endif 
+  }
+
+  // could combine with above, but avoids the +-...
+  void updateChangedRange(int16_t x, int16_t y) __attribute__((always_inline)) {
+    #ifdef ENABLE_ST77XX_FRAMEBUFFER
+    if (x < _changed_min_x)
+      _changed_min_x = x;
+    if (y < _changed_min_y)
+      _changed_min_y = y;
+    if (x > _changed_max_x)
+      _changed_max_x = x;
+    if (y > _changed_max_y)
+      _changed_max_y = y;
+  #endif
+  }
 
 	void HLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	  __attribute__((always_inline)) 
@@ -835,6 +883,7 @@ class ST7735_t3 : public Print
 
 		#ifdef ENABLE_ST77XX_FRAMEBUFFER
 	  	if (_use_fbtft) {
+        updateChangedRange(x, y); // update the range of the screen that has been changed;
         int pixel_index = (int)y*(int)_width + x;
 	  		_pfbtft[pixel_index] = color;
 	  		return;

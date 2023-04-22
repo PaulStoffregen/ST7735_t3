@@ -82,32 +82,22 @@ void  ST7789_t3::setRotation(uint8_t m)
      writedata_last(ST77XX_MADCTL_MY | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
 
      _xstart = _rowstart;
-     _ystart = _colstart;
+     _ystart = _colstart2;
      _height = _screenWidth;
      _width = _screenHeight;
      break;
   case 2:
      writedata_last(ST77XX_MADCTL_RGB); 
-    if ((_screenWidth == 135) && (_screenHeight == 240)) {
-      _xstart = _colstart - 1;
-      _ystart = _rowstart;
-    } else {
-      _xstart = 0;
-      _ystart = 0;
-    }
+     _xstart = _colstart2;
+     _ystart = _rowstart2;
      _width = _screenWidth;
      _height = _screenHeight;
      break;
 
    case 3:
      writedata_last(ST77XX_MADCTL_MX | ST77XX_MADCTL_MV | ST77XX_MADCTL_RGB);
-    if ((_screenWidth == 135) && (_screenHeight == 240)) {
-      _xstart = _rowstart;
-      _ystart = _colstart;
-    } else {
-      _xstart = 0;
-      _ystart = 0;
-    }
+     _xstart = _rowstart2;
+     _ystart = _colstart;
      _height = _screenWidth;
      _width = _screenHeight;
      break;
@@ -163,15 +153,21 @@ void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
   Serial.printf("ST7789_t3::init mode: %x\n", mode);
 	commonInit(NULL, mode);
 
+  // Add in support for other widths and heights.
   if ((width == 240) && (height == 240)) {
     _colstart = 0;
+    _colstart2 = 0;
     _rowstart = 80;
+    _rowstart2 = 0;
   } else if ((width == 135) && (height == 240)) { // 1.13" display Their smaller display
     _colstart = 53;
+    _colstart2 = 52;  // odd size
     _rowstart = 40;
-  } else {
-    _colstart = 0;
-    _rowstart = 0;
+    _rowstart2 = 40;
+  } else {  // lets compute it.
+    // added support for other sizes
+    _rowstart = _rowstart2 = (int)((320 - height) / 2);
+    _colstart = _colstart2 = (int)((240 - width) / 2);
   }
   
   _height = height;

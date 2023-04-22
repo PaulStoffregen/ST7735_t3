@@ -30,6 +30,10 @@ class ST7789_t3 : public ST7735_t3 {
   virtual void  setRotation(uint8_t m);
 
   void  init(uint16_t width=240, uint16_t height=240, uint8_t mode=SPI_MODE0);
+protected:
+    uint8_t _colstart2 = 0; // Offset from the right added to handle additional display sizes
+    uint8_t _rowstart2 = 0; // Offset from the bottom
+
 };
 
 
