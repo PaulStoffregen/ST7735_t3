@@ -45,6 +45,7 @@
 //#include <Adafruit_GFX.h>    // Core graphics library
 #include <ST7735_t3.h> // Hardware-specific library
 #include <ST7789_t3.h> // Hardware-specific library
+#include <ST7796_t3.h> // Hardware-specific library
 #include <SPI.h>
 
 // Option 1: use any pins but a little slower
@@ -67,6 +68,11 @@
 
 // For 1.54" TFT with ST7789
 ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_RST);
+
+// For 3.5" or 4.0" TFT with ST7796
+//ST7796_t3 tft = ST7796_t3(TFT_CS, TFT_DC, TFT_RST);
+
+
 
 float p = 3.1415926;
 
@@ -91,16 +97,23 @@ void setup(void) {
   //tft.setRowColStart(32,0);
 
   // Or use this initializer (uncomment) if you're using a 1.54" 240x240 TFT
-  tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
+  //tft.init(240, 240);   // initialize a ST7789 chip, 240x240 pixels
 
   // OR use this initializer (uncomment) if using a 2.0" 320x240 TFT:
-  //tft.init(240, 320);           // Init ST7789 320x240
-
+  tft.init(240, 320);           // Init ST7789 320x240
+  //tft.init(320, 480);
   // OR use this initializer (uncomment) if using a 240x240 clone 
   // that does not have a CS pin2.0" 320x240 TFT:
   //tft.init(240, 240, SPI_MODE2);           // Init ST7789 240x240 no CS
 
   Serial.println("init");
+
+  tft.fillScreen(ST7735_RED);
+  delay(500);
+  tft.fillScreen(ST7735_GREEN);
+  delay(500);
+  tft.fillScreen(ST7735_BLUE);
+  delay(500);
 
   uint16_t time = millis();
   tft.fillScreen(ST7735_BLACK);
