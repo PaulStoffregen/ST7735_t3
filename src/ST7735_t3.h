@@ -42,8 +42,8 @@
 #endif
 
 
-#define ST7735_SPICLOCK 24000000
-//#define ST7735_SPICLOCK 16000000
+//#define ST7735_SPICLOCK 24000000
+#define ST7735_SPICLOCK 16000000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0
