@@ -158,7 +158,7 @@ void  ST7796_t3::setRotation(uint8_t m)
      _width = _screenHeight;
      break;
   case 2:
-     writedata_last(ST77XX_MADCTL_MY | ST77XX_MADCTL_RGB); 
+     writedata_last(ST77XX_MADCTL_MY | ST77XX_MADCTL_BGR); 
      _xstart = _colstart2;
      _ystart = _rowstart2;
      _width = _screenWidth;
