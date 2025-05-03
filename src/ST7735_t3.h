@@ -234,12 +234,35 @@ class ST7735_t3 : public Print
 
   void setAddr(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
     __attribute__((always_inline)) {
-        writecommand(ST7735_CASET); // Column addr set
-        writedata16(x0+_xstart);   // XSTART 
-        writedata16(x1+_xstart);   // XEND
-        writecommand(ST7735_RASET); // Row addr set
-        writedata16(y0+_ystart);   // YSTART
-        writedata16(y1+_ystart);   // YEND
+        // Keep a copy of the last address window transmitted.
+	// Do not transmit it again until the window actually changes.
+        static uint16_t _x0 = 0xFFFF, _y0 = 0xFFFF, 
+                        _x1 = 0xFFFF, _y1 = 0xFFFF;
+
+        // TBD: Guard these under the same conditions as CASET/RASET below?
+        //  But the bottleneck is SPI throughput/contention, not 16-bit ADDs.
+        x0 += _xstart;
+        x1 += _xstart;
+        y0 += _ystart;
+        y1 += _ystart;
+
+        if (x0 != _x0 || x1 != _x1) {
+            writecommand(ST7735_CASET); // Column addr set
+            writedata16(x0);   // XSTART 
+            writedata16(x1);   // XEND
+            _x0 = x0;
+            _x1 = x1;
+        }
+
+        if (y0 != _y0 || y1 != _y1) {
+            writecommand(ST7735_RASET); // Row addr set
+            writedata16(y0);   // YSTART
+            writedata16(y1);   // YEND
+            _y0 = y0;
+            _y1 = y1;
+        }
+
+	writecommand(ST7735_RAMWR); // Write to RAM
   }
 
   ////
@@ -816,7 +839,6 @@ class ST7735_t3 : public Print
 	    if (w<1) return;
 
 		setAddr(x, y, x+w-1, y);
-		writecommand(ST7735_RAMWR);
 		do { writedata16(color); } while (--w > 0);
 	  }
 	  
@@ -839,7 +861,6 @@ class ST7735_t3 : public Print
 	    if(h<1) return;
 
 		setAddr(x, y, x, y+h-1);
-		writecommand(ST7735_RAMWR);
 		do { writedata16(color); } while (--h > 0);
 	  }
 	  
@@ -890,7 +911,6 @@ class ST7735_t3 : public Print
 	  	}
 	  	#endif
 		setAddr(x, y, x, y);
-		writecommand(ST7735_RAMWR);
 		writedata16(color);
 	}
 
