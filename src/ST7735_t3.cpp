@@ -1194,6 +1194,10 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 				writedata16(color);
 			}
 			writedata16_last(color);		
+			if (y > 1 && (y & 1)) {
+				endSPITransaction();
+				beginSPITransaction();
+			}
 		}
 		endSPITransaction();
 	}
