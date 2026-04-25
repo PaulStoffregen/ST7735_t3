@@ -1144,7 +1144,9 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 {
 	x+=_originx;
 	y+=_originy;
-
+	int bbig=0; // Break Big Rectangles, not small font calls
+	if ( w*h > 100 ) bbig=1;
+	
 	// Rectangular clipping (drawChar w/big text requires this)
 	if((x >= _displayclipx2) || (y >= _displayclipy2)) return;
 	if (((x+w) <= _displayclipx1) || ((y+h) <= _displayclipy1)) return;
@@ -1194,6 +1196,10 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 				writedata16(color);
 			}
 			writedata16_last(color);		
+			if (bbig && y > 1 && (y & 1)) {
+				endSPITransaction();
+				beginSPITransaction();
+			}
 		}
 		endSPITransaction();
 	}
