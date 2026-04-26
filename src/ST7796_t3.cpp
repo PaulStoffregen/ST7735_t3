@@ -248,7 +248,7 @@ static const uint8_t PROGMEM
 
 void  ST7796_t3::init(uint16_t width, uint16_t height, uint8_t mode)
 {
-  Serial.printf("ST7796_t3::init mode: %x\n", mode);
+  // Serial.printf("ST7796_t3::init mode: %x\n", mode);
 	commonInit(NULL, mode);
   if ((width == 320) && (height == 480)) {
     _colstart = 0;   
