@@ -150,7 +150,7 @@ static const uint8_t PROGMEM
 
 void  ST7789_t3::init(uint16_t width, uint16_t height, uint8_t mode)
 {
-  Serial.printf("ST7789_t3::init mode: %x\n", mode);
+  // Serial.printf("ST7789_t3::init mode: %x\n", mode);
 	commonInit(NULL, mode);
 
   // Add in support for other widths and heights.
