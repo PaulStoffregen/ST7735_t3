@@ -1012,7 +1012,6 @@ void ST7735_t3::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1
 {
 	beginSPITransaction();
 	setAddr(x0, y0, x1, y1);
-	writecommand(ST7735_RAMWR); // write to RAM
 	// The setAddrWindow/pushColor will only work if SPI is kept active during this loop...
 	endSPITransaction();
 }
@@ -1050,7 +1049,6 @@ void ST7735_t3::drawPixel(int16_t x, int16_t y, uint16_t color)
 	{
 		beginSPITransaction();
 		setAddr(x,y,x+1,y+1);
-		writecommand(ST7735_RAMWR);
 		writedata16_last(color);
 		endSPITransaction();
 	}
@@ -1081,7 +1079,6 @@ void ST7735_t3::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 	{
 		beginSPITransaction();
 		setAddr(x, y, x, y+h-1);
-		writecommand(ST7735_RAMWR);
 		while (h-- > 1) {
 			writedata16(color);
 		}
@@ -1125,7 +1122,6 @@ void ST7735_t3::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
 	{
 		beginSPITransaction();
 		setAddr(x, y, x+w-1, y);
-		writecommand(ST7735_RAMWR);
 		while (w-- > 1) {
 			writedata16(color);
 		}
@@ -1190,7 +1186,6 @@ void ST7735_t3::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t co
 		// it'll cost more overhead, so we don't stall other SPI libs
 		beginSPITransaction();
 		setAddr(x, y, x+w-1, y+h-1);
-		writecommand(ST7735_RAMWR);
 		for(y=h; y>0; y--) {
 			for(x=w; x>1; x--) {
 				writedata16(color);
@@ -1431,7 +1426,6 @@ void ST7735_t3::writeRect(int16_t x, int16_t y, int16_t w, int16_t h, const uint
 
    	beginSPITransaction();
 	setAddr(x, y, x+w-1, y+h-1);
-	writecommand(ST7735_RAMWR);
 	for(y=h; y>0; y--) {
 		pcolors += x_clip_left;
 		for(x=w; x>1; x--) {
@@ -1502,7 +1496,6 @@ void ST7735_t3::writeSubImageRect(int16_t x, int16_t y, int16_t w, int16_t h,
 
   beginSPITransaction();
   setAddr(x, y, x+w-1, y+h-1);
-  writecommand(ST7735_RAMWR);
   for(y=h; y>0; y--) {
     const uint16_t *pcolors_row = pcolors; 
     for(x=w; x>1; x--) {
@@ -1573,7 +1566,6 @@ void ST7735_t3::writeSubImageRectBytesReversed(int16_t x, int16_t y, int16_t w, 
 
   beginSPITransaction();
   setAddr(x, y, x+w-1, y+h-1);
-  writecommand(ST7735_RAMWR);
   for(y=h; y>0; y--) {
     const uint16_t *pcolors_row = pcolors; 
     for(x=w; x>1; x--) {
@@ -1661,7 +1653,6 @@ void ST7735_t3::writeRect8BPP(int16_t x, int16_t y, int16_t w, int16_t h,
 
   beginSPITransaction();
   setAddr(x, y, x + w - 1, y + h - 1);
-  writecommand(ST7735_RAMWR);
   for (y = h; y > 0; y--) {
     pixels += x_clip_left;
     // Serial.printf("%x: ", (uint32_t)pixels);
@@ -1805,7 +1796,6 @@ void ST7735_t3::writeRectNBPP(int16_t x, int16_t y, int16_t w, int16_t h,
 
   beginSPITransaction();
   setAddr(x, y, x + w - 1, y + h - 1);
-  writecommand(ST7735_RAMWR);
   for (; h > 0; h--) {
     pixels = pixels_row_start;            // setup for this row
     uint8_t pixel_shift = row_shift_init; // Setup mask
@@ -2721,7 +2711,6 @@ void ST7735_t3::drawChar(int16_t x, int16_t y, unsigned char c,
 			setAddr(x, y, x + w -1, y + h - 1);
 
 			y = y_char_top;	// restore the actual y.
-			writecommand(ST7735_RAMWR);
 			for (yc=0; (yc < 8) && (y < _displayclipy2); yc++) {
 				for (yr=0; (yr < size_y) && (y < _displayclipy2); yr++) {
 					x = x_char_start; 		// get our first x position...
@@ -3237,7 +3226,6 @@ void ST7735_t3::drawFontChar(unsigned int c)
 			//Serial.printf("SetAddr %d %d %d %d\n", start_x_min, start_y_min, end_x, end_y);
 			// output rectangle we are updating... We have already clipped end_x/y, but not yet start_x/y
 			setAddr( start_x, start_y_min, end_x, end_y);
-			writecommand(ST7735_RAMWR);
 			int screen_y = start_y_min;
 			int screen_x;
 
@@ -3917,7 +3905,6 @@ void ST7735_t3::drawGFXFontChar(unsigned int c) {
 			setAddr((x_start >= _displayclipx1) ? x_start : _displayclipx1, 
 					(y_start >= _displayclipy1) ? y_start : _displayclipy1, 
 					x_end  - 1,  y_end - 1); 
-			writecommand(ST7735_RAMWR);
 			//Serial.printf("SetAddr: %u %u %u %u\n", (x_start >= _displayclipx1) ? x_start : _displayclipx1, 
 			//		(y_start >= _displayclipy1) ? y_start : _displayclipy1, 
 			//		x_end  - 1,  y_end - 1); 
@@ -4283,7 +4270,6 @@ void ST7735_t3::updateScreen(void)					// call to say update the screen now.
 		if (_standard && !_updateChangedAreasOnly) {
 			// Doing full window. 
 			setAddr(0, 0, _width-1, _height-1);
-			writecommand(ST7735_RAMWR);
 
 			// BUGBUG doing as one shot.  Not sure if should or not or do like
 			// main code and break up into transactions...
@@ -4318,7 +4304,6 @@ void ST7735_t3::updateScreen(void)					// call to say update the screen now.
       //if (Serial) Serial.printf("updateScreen: (%u %u) - (%u %u)\n", start_x, start_y, end_x, end_y);
       if ((start_x <= end_x) && (start_y <= end_y)) {
         setAddr(start_x, start_y, end_x, end_y);
-        writecommand(ST7735_RAMWR);
 
         // BUGBUG doing as one shot.  Not sure if should or not or do like
         // main code and break up into transactions...
@@ -4625,7 +4610,6 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 
 	// Doing full window. 
 	setAddr(0, 0, _width-1, _height-1);
-	writecommand(ST7735_RAMWR);
 
 	// Write the first Word out before enter DMA as to setup the proper CS/DC/Continue flaugs
 	writedata16(*_pfbtft);
@@ -4656,7 +4640,7 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 // Doing full window.
 
   setAddr(0, 0, _width - 1, _height - 1);
-  writecommand_last(ST7735_RAMWR);
+  waitTransmitComplete();
 
   // Update TCR to 16 bit mode. and output the first entry.
   _spi_fcr_save = _pimxrt_spi->FCR; // remember the FCR
@@ -4705,7 +4689,6 @@ bool ST7735_t3::updateScreenAsync(bool update_cont)					// call to say update th
 	beginSPITransaction();
 	// Doing full window. 
 	setAddr(0, 0, _width-1, _height-1);
-	writecommand(ST7735_RAMWR);
 
 	// Write the first Word out before enter DMA as to setup the proper CS/DC/Continue flaugs
 	// On T3.5 DMA only appears to work with CTAR 0 so hack it up...
