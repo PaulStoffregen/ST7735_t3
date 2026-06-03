@@ -33,7 +33,7 @@
 #elif defined(__IMXRT1062__)
 #define ENABLE_ST77XX_FRAMEBUFFER
 #endif
-// Lets allow the user to define if they want T3.2 to enable frame buffer.
+// Let's allow the user to define if they want T3.2 to enable frame buffer.
 // it will only work on subset of displays due to memory
 #define ENABLE_ST77XX_FRAMEBUFFER_T32
 #if defined(__MK20DX256__) && defined(ENABLE_ST77XX_FRAMEBUFFER_T32)
@@ -42,8 +42,8 @@
 #endif
 
 
-//#define ST7735_SPICLOCK 24000000
-#define ST7735_SPICLOCK 16000000
+//#define ST7735_SPICLOCK 24'000'000
+#define ST7735_SPICLOCK 16'000'000
 
 // some flags for initR() :(
 #define INITR_GREENTAB 0x0

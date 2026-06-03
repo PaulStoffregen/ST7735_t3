@@ -76,9 +76,9 @@
 #define TFT_DC2   55  // Note: don't use 43 with 55
 #define TFT_RESET 56
 
-#define SPI_INTERFACES_COUNT 2  // only do 1 to start testing
+#define SPI_INTERFACES_USED 2  // use 2 SPI interfaces
 #else   // T3.2
-#define SPI_INTERFACES_COUNT 1  // only do 1 to start testing
+#define SPI_INTERFACES_USED 1  // only do 1 to start testing
 #endif
 #endif
 
@@ -87,10 +87,7 @@
 //----------------------------------------------------------
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
 
-#ifdef SPI_INTERFACES_COUNT
-#undef SPI_INTERFACES_COUNT
-#endif
-#define SPI_INTERFACES_COUNT 2  // only do 1 to start testing
+#define SPI_INTERFACES_USED 2  // use 2 SPI interfaces
 
 #define TFT_CS   10  // 
 #define TFT_DC    9  // Note pin 10 is only Hardware CS - slightly faster
@@ -130,7 +127,7 @@
 #define TFT_CS1   19  // any digital pin
 #define TFT_DC1   18  // any digital pin
 #define TFT_RST1  17  // any digital pin
-#define SPI_INTERFACES_COUNT 2  // only do 1 to start testing
+#define SPI_INTERFACES_USED 2  // use 2 SPI interfaces
 #undef USE_FRAME_BUFFER   // not enough memory for this....
 #endif
 
@@ -152,12 +149,12 @@
 ST7735_t3 tft = ST7735_t3(TFT_CS, TFT_DC, TFT_RST);
 //ST7789_t3 tft = ST7789_t3(TFT_CS, TFT_DC, TFT_RST1);
 
-#if SPI_INTERFACES_COUNT > 1
+#if SPI_INTERFACES_USED > 1
 // Again only one
 //ST7735_t3 tft1 = ST7735_t3(TFT_CS1, TFT_DC1, TFT_MOSI1, TFT_SCLK1, TFT_RST1);
 ST7789_t3 tft1 = ST7789_t3(TFT_CS1, TFT_DC1, TFT_MOSI1, TFT_SCLK1, TFT_RST1);
 
-#if SPI_INTERFACES_COUNT > 2
+#if SPI_INTERFACES_USED > 2
 //ST7735_t3 tft2 = ST7735_t3(TFT_CS2, TFT_DC2, TFT_MOSI2, TFT_SCLK2, TFT_RST2);
 ST7789_t3 tft2 = ST7789_t3(TFT_CS2, TFT_DC2, TFT_MOSI2, TFT_SCLK2, TFT_RST2);
 #endif
@@ -172,10 +169,10 @@ ST7735_t3 * tfts[] =
 {
   & tft
 
-#if SPI_INTERFACES_COUNT > 1
+#if SPI_INTERFACES_USED > 1
   , & tft1
 
-#if SPI_INTERFACES_COUNT > 2
+#if SPI_INTERFACES_USED > 2
   , & tft2
 #endif
 #endif
@@ -209,9 +206,10 @@ void setup()
 
   //----------------------------------------------------------
   // Init the first display, only uncomment one in this
-  // section which should coorespond to the ones defined in
+  // section which should correspond to the ones defined in
   // objects.
   //----------------------------------------------------------
+  //tft.initR(INITR_BLACKTAB);
   //tft.initR(INITR_GREENTAB);
   tft.initR(INITR_144GREENTAB);
   //tft.initR(INITR_144GREENTAB_OFFSET);
@@ -228,10 +226,11 @@ void setup()
 #endif  
   Serial.println("tft displayed");
 
-#if SPI_INTERFACES_COUNT > 1
+#if SPI_INTERFACES_USED > 1
   //----------------------------------------------------------
   // Init the second display, only uncomment one in this
   //----------------------------------------------------------
+  //tft1.initR(INITR_BLACKTAB);
   //tft1.initR(INITR_144GREENTAB);
   //tft1.initR(INITR_144GREENTAB_OFFSET);
   //tft1.setRowColStart(0,0);
@@ -248,7 +247,7 @@ void setup()
   Serial.println("tft1 displayed");
 #endif
 
-#if SPI_INTERFACES_COUNT > 2
+#if SPI_INTERFACES_USED > 2
   //----------------------------------------------------------
   // Init the third display, only uncomment one in this
   //----------------------------------------------------------
@@ -269,10 +268,10 @@ void setup()
 
   delay(1000); // Delay 1000 ms
 
-#if SPI_INTERFACES_COUNT > 1
+#if SPI_INTERFACES_USED > 1
 #endif
 
-#if SPI_INTERFACES_COUNT > 2
+#if SPI_INTERFACES_USED > 2
 #endif
   //  Serial.printf("Hit any key to continue");
   //  while (Serial.read() == -1) ;
