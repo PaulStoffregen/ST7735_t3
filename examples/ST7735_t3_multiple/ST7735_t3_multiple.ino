@@ -87,6 +87,9 @@
 //----------------------------------------------------------
 #if defined(__IMXRT1052__) || defined(__IMXRT1062__)  // Teensy 4.x
 
+#ifdef SPI_INTERFACES_COUNT
+#undef SPI_INTERFACES_COUNT
+#endif
 #define SPI_INTERFACES_COUNT 2  // only do 1 to start testing
 
 #define TFT_CS   10  // 
